@@ -1,28 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --green: #39ff14;
-  --green-dim: #1a7a08;
-  --green-mid: #22c55e;
-  --amber: #ffb000;
-  --bg: #030a03;
-  --bg-card: #050f05;
-  --border: #1a4a1a;
-  --scanline: rgba(0, 0, 0, 0.25);
+  --purple: #7b2fbe;
+  --purple-light: #a855f7;
+  --purple-dim: #3b1a5a;
+  --purple-dark: #0d0514;
+  --gcn-green: #00c846;
+  --gcn-red: #e8001c;
+  --gcn-blue: #0050c8;
+  --gcn-yellow: #f0c000;
+  --gcn-gray: #8c8c8c;
+  --bg: #080410;
+  --bg-card: #0e0820;
+  --border: #2a1545;
+  --text: #e8d5ff;
+  --text-dim: #6b4a8a;
+  --scanline: rgba(0, 0, 0, 0.3);
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 html, body {
   background: var(--bg);
-  color: var(--green);
+  color: var(--text);
   font-family: "Courier New", Courier, monospace;
   min-height: 100vh;
 }
 
-/* CRT scanlines overlay */
+/* CRT scanlines */
 body::before {
   content: "";
   position: fixed;
@@ -38,34 +43,34 @@ body::before {
   z-index: 9999;
 }
 
-/* Phosphor screen vignette */
+/* Vignette */
 body::after {
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%);
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
   pointer-events: none;
   z-index: 9998;
 }
 
-/* Text glow */
-h1, h2, .glow {
-  text-shadow: 0 0 8px var(--green), 0 0 20px var(--green-dim);
+h1, .glow {
+  text-shadow: 0 0 10px var(--purple-light), 0 0 30px var(--purple-dim);
 }
 
-/* Inputs */
 input, select {
   background: var(--bg-card);
-  color: var(--green);
-  border: 1px solid var(--green-dim);
+  color: var(--text);
+  border: 1px solid var(--border);
   font-family: inherit;
   outline: none;
 }
-input::placeholder { color: var(--green-dim); }
-input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 6px var(--green-dim); }
+input::placeholder { color: var(--text-dim); }
+input:focus, select:focus {
+  border-color: var(--purple-light);
+  box-shadow: 0 0 8px var(--purple-dim);
+}
 select option { background: var(--bg); }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--green-dim); }
+::-webkit-scrollbar-thumb { background: var(--purple-dim); }

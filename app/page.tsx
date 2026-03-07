@@ -4,6 +4,38 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Player } from "@/lib/bracket";
 
+// GCN button colors matching actual controller
+const SEED_BUTTONS = [
+  { seed: 1, label: "A", color: "#00c846", bg: "#003d16" },
+  { seed: 2, label: "B", color: "#e8001c", bg: "#3d0008" },
+  { seed: 3, label: "X", color: "#c8c8ff", bg: "#1a1a3d" },
+];
+
+function GCNButton({ label, color, bg, active, onClick }: {
+  label: string; color: string; bg: string; active: boolean; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={`Seed ${label}`}
+      style={{
+        width: 26, height: 26, borderRadius: "50%",
+        background: active ? color : bg,
+        border: `2px solid ${color}`,
+        color: active ? "#000" : color,
+        fontSize: 12, fontWeight: "bold",
+        fontFamily: "inherit",
+        cursor: "pointer",
+        boxShadow: active ? `0 0 8px ${color}` : "none",
+        transition: "all 0.1s",
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
@@ -14,19 +46,19 @@ export default function Home() {
   const updateName = (i: number, val: string) =>
     setNames((n) => n.map((v, idx) => (idx === i ? val : v)));
 
-  const updateSeed = (i: number, val: string) => {
-    const num = parseInt(val);
+  const toggleSeed = (playerIdx: number, seed: number) => {
     setSeeds((s) => {
       const next = { ...s };
-      Object.keys(next).forEach((k) => { if (next[+k] === num) delete next[+k]; });
-      if (val && num >= 1 && num <= 3) next[i] = num;
-      else delete next[i];
+      // Remove existing assignment for this seed
+      Object.keys(next).forEach((k) => { if (next[+k] === seed) delete next[+k]; });
+      if (next[playerIdx] === seed) delete next[playerIdx];
+      else next[playerIdx] = seed;
       return next;
     });
   };
 
   const loadStub = (count: number) => {
-    setNames(Array.from({ length: count }, (_, i) => `PLAYER_${String(i + 1).padStart(2, "0")}`));
+    setNames(Array.from({ length: count }, (_, i) => `P${i + 1}`));
     setSeeds({ 0: 1, 1: 2, 2: 3 });
   };
 
@@ -34,58 +66,69 @@ export default function Home() {
     const players: Player[] = names
       .map((name, i) => ({ id: `p${i}`, name: name.trim(), seed: seeds[i] }))
       .filter((p) => p.name);
-    if (players.length < 3) return alert("ERROR: MINIMUM 3 PLAYERS REQUIRED");
+    if (players.length < 3) return alert("NEED AT LEAST 3 PLAYERS");
     localStorage.setItem("bracket-players", JSON.stringify(players));
     router.push("/bracket");
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center py-16 px-4">
-      {/* Header */}
-      <div className="text-center mb-10">
-        <div className="text-xs mb-2" style={{ color: "var(--green-dim)" }}>
-          ══════════════════════════════════
-        </div>
-        <h1 className="text-4xl font-bold tracking-widest glow mb-1">
-          BRACKET SYS
-        </h1>
-        <div className="text-xs tracking-widest" style={{ color: "var(--green-dim)" }}>
-          DOUBLE ELIMINATION v1.0
-        </div>
-        <div className="text-xs mt-2" style={{ color: "var(--green-dim)" }}>
-          ══════════════════════════════════
-        </div>
+    <main className="min-h-screen flex flex-col items-center py-12 px-4">
+
+      {/* GCN controller SVG decoration */}
+      <div className="mb-6 opacity-30">
+        <svg width="120" height="60" viewBox="0 0 120 60">
+          {/* Controller body */}
+          <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="1.5"/>
+          {/* Left grip */}
+          <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
+          {/* Right grip */}
+          <ellipse cx="102" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
+          {/* D-pad */}
+          <rect x="28" y="30" width="5" height="14" rx="1" fill="#7b2fbe"/>
+          <rect x="24" y="34" width="13" height="5" rx="1" fill="#7b2fbe"/>
+          {/* A button */}
+          <circle cx="82" cy="32" r="7" fill="#00c846" opacity="0.8"/>
+          <text x="82" y="36" textAnchor="middle" fontSize="8" fill="#000" fontWeight="bold">A</text>
+          {/* B button */}
+          <circle cx="70" cy="40" r="5" fill="#e8001c" opacity="0.8"/>
+          <text x="70" y="44" textAnchor="middle" fontSize="7" fill="#fff" fontWeight="bold">B</text>
+          {/* X button */}
+          <circle cx="92" cy="40" r="5" fill="#8888ff" opacity="0.8"/>
+          <text x="92" y="44" textAnchor="middle" fontSize="7" fill="#fff" fontWeight="bold">X</text>
+          {/* Y button */}
+          <circle cx="82" cy="48" r="4" fill="#888" opacity="0.8"/>
+          <text x="82" y="51" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="bold">Y</text>
+          {/* C-stick */}
+          <circle cx="68" cy="22" r="6" fill="#f0c000" opacity="0.6"/>
+          <text x="68" y="26" textAnchor="middle" fontSize="6" fill="#000" fontWeight="bold">C</text>
+          {/* Analog stick */}
+          <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
+          <circle cx="44" cy="24" r="4" fill="#7b2fbe" opacity="0.5"/>
+          {/* Start */}
+          <circle cx="60" cy="30" r="4" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
+          <text x="60" y="33" textAnchor="middle" fontSize="5" fill="#7b2fbe">ST</text>
+        </svg>
+      </div>
+
+      {/* Title */}
+      <div className="text-center mb-8">
+        <div className="text-sm mb-1" style={{ color: "var(--text-dim)" }}>── SUPER SMASH BROS. MELEE ──</div>
+        <h1 className="text-4xl font-bold tracking-widest glow">TOURNAMENT</h1>
+        <div className="text-sm tracking-widest mt-1" style={{ color: "var(--text-dim)" }}>DOUBLE ELIMINATION BRACKET</div>
       </div>
 
       {/* Quick load */}
-      <div className="mb-6 w-full max-w-md">
-        <div className="text-xs mb-2" style={{ color: "var(--green-dim)" }}>
-          &gt; QUICK LOAD:
-        </div>
-        <div className="flex gap-2 flex-wrap">
+      <div className="mb-5 w-full max-w-md">
+        <div className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>&gt; QUICK FILL:</div>
+        <div className="flex gap-1.5 flex-wrap">
           {[3, 4, 5, 6, 7, 8, 10, 12, 16, 24, 32].map((n) => (
-            <button
-              key={n}
-              onClick={() => loadStub(n)}
-              className="text-xs px-2 py-1 transition"
-              style={{
-                border: "1px solid var(--green-dim)",
-                color: "var(--green-dim)",
-                background: "transparent",
-                fontFamily: "inherit",
-              }}
-              onMouseEnter={e => {
-                (e.target as HTMLElement).style.color = "var(--green)";
-                (e.target as HTMLElement).style.borderColor = "var(--green)";
-                (e.target as HTMLElement).style.boxShadow = "0 0 6px var(--green-dim)";
-              }}
-              onMouseLeave={e => {
-                (e.target as HTMLElement).style.color = "var(--green-dim)";
-                (e.target as HTMLElement).style.borderColor = "var(--green-dim)";
-                (e.target as HTMLElement).style.boxShadow = "none";
-              }}
+            <button key={n} onClick={() => loadStub(n)}
+              className="text-sm px-2 py-1 transition"
+              style={{ border: "1px solid var(--border)", color: "var(--text-dim)", background: "transparent", fontFamily: "inherit" }}
+              onMouseEnter={e => { (e.target as HTMLElement).style.borderColor = "var(--purple-light)"; (e.target as HTMLElement).style.color = "var(--purple-light)"; }}
+              onMouseLeave={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; (e.target as HTMLElement).style.color = "var(--text-dim)"; }}
             >
-              [{n}P]
+              {n}P
             </button>
           ))}
         </div>
@@ -93,68 +136,48 @@ export default function Home() {
 
       {/* Player list */}
       <div className="w-full max-w-md space-y-2">
-        <div className="text-xs mb-2" style={{ color: "var(--green-dim)" }}>
-          &gt; ENTER COMPETITORS:
+        <div className="text-sm mb-1" style={{ color: "var(--text-dim)" }}>
+          &gt; ENTRANTS &nbsp;
+          <span style={{ color: "var(--text-dim)" }}>
+            (press <span style={{ color: "#00c846" }}>A</span>/<span style={{ color: "#e8001c" }}>B</span>/<span style={{ color: "#8888ff" }}>X</span> to seed)
+          </span>
         </div>
+
         {names.map((name, i) => (
           <div key={i} className="flex gap-2 items-center">
-            <span className="text-xs w-6 text-right" style={{ color: "var(--green-dim)" }}>
-              {String(i + 1).padStart(2, "0")}
-            </span>
+            <span className="text-sm w-5 text-right" style={{ color: "var(--text-dim)" }}>{i + 1}.</span>
             <input
-              className="flex-1 px-2 py-1.5 text-sm"
-              placeholder={`PLAYER_${String(i + 1).padStart(2, "0")}`}
+              className="flex-1 px-2 py-1.5 text-base"
+              placeholder={`Player ${i + 1}`}
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
             />
-            <select
-              className="px-2 py-1.5 text-xs"
-              value={seeds[i] ?? ""}
-              onChange={(e) => updateSeed(i, e.target.value)}
-            >
-              <option value="">--</option>
-              <option value="1">S1</option>
-              <option value="2">S2</option>
-              <option value="3">S3</option>
-            </select>
+            <div className="flex gap-1">
+              {SEED_BUTTONS.map(({ seed, label, color, bg }) => (
+                <GCNButton key={seed} label={label} color={color} bg={bg}
+                  active={seeds[i] === seed}
+                  onClick={() => toggleSeed(i, seed)} />
+              ))}
+            </div>
             {names.length > 3 && (
-              <button
-                onClick={() => removePlayer(i)}
-                className="text-sm w-5"
-                style={{ color: "var(--green-dim)", fontFamily: "inherit" }}
-              >
-                ✕
-              </button>
+              <button onClick={() => removePlayer(i)} style={{ color: "var(--text-dim)", fontFamily: "inherit", fontSize: 14 }}>✕</button>
             )}
           </div>
         ))}
 
-        <button
-          onClick={addPlayer}
-          className="w-full py-1.5 text-xs mt-1 transition"
-          style={{
-            border: "1px dashed var(--green-dim)",
-            color: "var(--green-dim)",
-            background: "transparent",
-            fontFamily: "inherit",
-          }}
-        >
-          + ADD PLAYER
+        <button onClick={addPlayer} className="w-full py-1.5 text-sm mt-1"
+          style={{ border: "1px dashed var(--border)", color: "var(--text-dim)", background: "transparent", fontFamily: "inherit" }}>
+          + ADD ENTRANT
         </button>
 
-        <button
-          onClick={start}
-          className="w-full py-2.5 text-sm font-bold tracking-widest mt-2 transition"
+        <button onClick={start} className="w-full py-3 text-base font-bold tracking-widest mt-2"
           style={{
-            border: "1px solid var(--green)",
-            color: "var(--bg)",
-            background: "var(--green)",
-            fontFamily: "inherit",
-            textShadow: "none",
-            boxShadow: "0 0 12px var(--green), 0 0 24px var(--green-dim)",
-          }}
-        >
-          ▶ GENERATE BRACKET
+            border: "1px solid var(--purple-light)",
+            color: "#000", background: "var(--purple-light)",
+            fontFamily: "inherit", textShadow: "none",
+            boxShadow: "0 0 16px var(--purple), 0 0 32px var(--purple-dim)",
+          }}>
+          ▶ START TOURNAMENT
         </button>
       </div>
     </main>
