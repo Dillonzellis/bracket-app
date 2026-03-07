@@ -198,12 +198,12 @@ export function generateBracket(players: Player[]): BracketState {
         const id = mid("l", losersRounds.length + 1, i);
         const src1 = conSources[i * 2];
         const src2 = conSources[i * 2 + 1] ?? null;
-        // src1 is always a matchId (winner source)
-        // src2 could be a prevLR matchId (winner) or a bypassSource (W loser → loser source)
+        const src1IsWLoser = bypassSources.includes(src1);
         const src2IsWLoser = src2 ? bypassSources.includes(src2) : false;
         matches[id] = {
           id, round: losersRounds.length + 1, matchIndex: i,
-          p1Source: src1,
+          p1Source: src1IsWLoser ? null : src1,
+          p1SourceLoser: src1IsWLoser ? src1 : undefined,
           p2Source: src2IsWLoser ? null : src2,
           p2SourceLoser: src2IsWLoser ? src2! : undefined,
           winner: null, loser: null,
