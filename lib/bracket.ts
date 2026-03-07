@@ -157,26 +157,19 @@ export function generateBracket(players: Player[]): BracketState {
   }
 
   // For each subsequent winners round (main R1 onwards), drop losers in then consolidate
-  // winnersRounds[0] = prelim (already handled), winnersRounds[1] = mainR1, etc.
   for (let wi = 1; wi < winnersRounds.length; wi++) {
     const wRound = winnersRounds[wi];
 
-    // Drop-in: prevLR[i] winner vs wRound[i] loser
-    // If no prevLR match at index i, the W loser is the only player — auto-advance them
+    // Pair each W loser with a prevLR survivor.
+    // If prevLR is shorter, the extra W losers have no opponent — carry them as free slots
+    // directly into the next consolidation rather than creating phantom bye matches.
     const dropRound: string[] = [];
+    const bypassSources: string[] = []; // W loser matchIds with no L opponent
+
     for (let i = 0; i < wRound.length; i++) {
-      const hasPrev = i < prevLR.length;
-      const id = mid("l", losersRounds.length + 1, i);
-      if (!hasPrev) {
-        // No L survivor — W loser gets a bye, mark as auto-winner via loser source only
-        matches[id] = {
-          id, round: losersRounds.length + 1, matchIndex: i,
-          p1Source: null, p2Source: null,
-          p1SourceLoser: wRound[i],
-          winner: null, loser: null,
-          bracket: "losers",
-        };
-      } else {
+      if (i < prevLR.length) {
+        // Real match: L survivor vs W loser
+        const id = mid("l", losersRounds.length + 1, i);
         matches[id] = {
           id, round: losersRounds.length + 1, matchIndex: i,
           p1Source: prevLR[i],
@@ -185,21 +178,34 @@ export function generateBracket(players: Player[]): BracketState {
           winner: null, loser: null,
           bracket: "losers",
         };
+        dropRound.push(id);
+      } else {
+        // No L survivor — W loser bypasses this round
+        bypassSources.push(wRound[i]);
       }
-      dropRound.push(id);
     }
-    losersRounds.push(dropRound);
-    prevLR = dropRound;
 
-    // Consolidation: pair up prevLR winners (only if more than 1 match)
-    if (prevLR.length > 1) {
+    if (dropRound.length > 0) {
+      losersRounds.push(dropRound);
+      prevLR = dropRound;
+    }
+
+    // Consolidation: pair up prevLR winners, also absorbing any bypass W losers
+    const conSources: string[] = [...prevLR, ...bypassSources];
+    if (conSources.length > 1) {
       const conRound: string[] = [];
-      for (let i = 0; i < Math.ceil(prevLR.length / 2); i++) {
+      for (let i = 0; i < Math.ceil(conSources.length / 2); i++) {
         const id = mid("l", losersRounds.length + 1, i);
+        const src1 = conSources[i * 2];
+        const src2 = conSources[i * 2 + 1] ?? null;
+        // src1 is always a matchId (winner source)
+        // src2 could be a prevLR matchId (winner) or a bypassSource (W loser → loser source)
+        const src2IsWLoser = src2 ? bypassSources.includes(src2) : false;
         matches[id] = {
           id, round: losersRounds.length + 1, matchIndex: i,
-          p1Source: prevLR[i * 2],
-          p2Source: prevLR[i * 2 + 1] ?? null,
+          p1Source: src1,
+          p2Source: src2IsWLoser ? null : src2,
+          p2SourceLoser: src2IsWLoser ? src2! : undefined,
           winner: null, loser: null,
           bracket: "losers",
         };
@@ -207,6 +213,18 @@ export function generateBracket(players: Player[]): BracketState {
       }
       losersRounds.push(conRound);
       prevLR = conRound;
+    } else if (conSources.length === 1 && bypassSources.length === 1 && dropRound.length === 0) {
+      // Only one W loser, no L survivors at all — create a single bye match
+      const id = mid("l", losersRounds.length + 1, 0);
+      matches[id] = {
+        id, round: losersRounds.length + 1, matchIndex: 0,
+        p1Source: null, p2Source: null,
+        p1SourceLoser: bypassSources[0],
+        winner: null, loser: null,
+        bracket: "losers",
+      };
+      losersRounds.push([id]);
+      prevLR = [id];
     }
   }
 

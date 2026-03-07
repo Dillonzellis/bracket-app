@@ -9,16 +9,27 @@ import {
 const MATCH_W = 176;
 const MATCH_H = 56;
 const COL_GAP = 60;
-const ROW_GAP = 12;
+const SECTION_GAP = 48; // vertical gap between winners and losers
 
-// Compute Y center of each match in a round given total height and match count
-function matchY(totalH: number, count: number, index: number): number {
-  const sliceH = totalH / count;
-  return sliceH * index + (sliceH - MATCH_H) / 2;
+function colX(ri: number) {
+  return ri * (MATCH_W + COL_GAP);
 }
 
-function sectionHeight(firstRoundCount: number): number {
-  return firstRoundCount * MATCH_H + (firstRoundCount - 1) * ROW_GAP;
+function sliceH(totalH: number, count: number) {
+  return totalH / count;
+}
+
+function cardY(totalH: number, count: number, mi: number) {
+  const sh = sliceH(totalH, count);
+  return sh * mi + (sh - MATCH_H) / 2;
+}
+
+function midY(totalH: number, count: number, mi: number) {
+  return cardY(totalH, count, mi) + MATCH_H / 2;
+}
+
+function sectionH(firstCount: number) {
+  return Math.max(firstCount, 1) * MATCH_H + Math.max(firstCount - 1, 0) * 12;
 }
 
 export default function BracketPage() {
@@ -35,7 +46,77 @@ export default function BracketPage() {
     setState((s) => (s ? reportResult(s, matchId, winnerId) : s));
 
   if (!state) return null;
+
   const gf = state.matches[state.grandFinalsId];
+  const wRounds = state.winnersRounds;
+  const lRounds = state.losersRounds;
+
+  const wFirstCount = wRounds[0]?.length ?? 1;
+  const lFirstCount = lRounds[0]?.length ?? 1;
+  const wH = sectionH(wFirstCount);
+  const lH = sectionH(lFirstCount);
+
+  // Both brackets share the same number of columns (use the max)
+  const numCols = Math.max(wRounds.length, lRounds.length);
+  const gfColX = colX(numCols); // grand finals sits one column past the last round
+  const totalW = gfColX + MATCH_W + COL_GAP;
+  const totalH = wH + SECTION_GAP + lH;
+
+  const wOffsetY = 0;
+  const lOffsetY = wH + SECTION_GAP;
+
+  // Grand finals is vertically centered in the full canvas
+  const gfY = totalH / 2 - MATCH_H / 2;
+
+  // Build SVG lines
+  const paths: string[] = [];
+  const stroke = "#374151";
+
+  // Winners bracket internal connectors
+  for (let ri = 0; ri < wRounds.length - 1; ri++) {
+    const count = wRounds[ri].length;
+    const nextCount = wRounds[ri + 1].length;
+    const cx = colX(ri);
+    const ncx = colX(ri + 1);
+    const mx = cx + MATCH_W + COL_GAP / 2;
+    for (let mi = 0; mi < count; mi++) {
+      const y1 = wOffsetY + midY(wH, count, mi);
+      const y2 = wOffsetY + midY(wH, nextCount, Math.floor(mi / 2));
+      paths.push(`M ${cx + MATCH_W} ${y1} H ${mx} V ${y2} H ${ncx}`);
+    }
+  }
+
+  // Losers bracket internal connectors
+  for (let ri = 0; ri < lRounds.length - 1; ri++) {
+    const count = lRounds[ri].length;
+    const nextCount = lRounds[ri + 1].length;
+    const cx = colX(ri);
+    const ncx = colX(ri + 1);
+    const mx = cx + MATCH_W + COL_GAP / 2;
+    for (let mi = 0; mi < count; mi++) {
+      const y1 = lOffsetY + midY(lH, count, mi);
+      const y2 = lOffsetY + midY(lH, nextCount, Math.floor(mi / 2));
+      paths.push(`M ${cx + MATCH_W} ${y1} H ${mx} V ${y2} H ${ncx}`);
+    }
+  }
+
+  // Winners finalist → grand finals (top feed)
+  if (wRounds.length > 0) {
+    const lastWCol = colX(wRounds.length - 1);
+    const wFinalY = wOffsetY + midY(wH, 1, 0);
+    const mx = lastWCol + MATCH_W + COL_GAP / 2;
+    const gfMidY = gfY + MATCH_H / 4; // top slot of GF card
+    paths.push(`M ${lastWCol + MATCH_W} ${wFinalY} H ${mx} V ${gfMidY} H ${gfColX}`);
+  }
+
+  // Losers finalist → grand finals (bottom feed)
+  if (lRounds.length > 0) {
+    const lastLCol = colX(lRounds.length - 1);
+    const lFinalY = lOffsetY + midY(lH, 1, 0);
+    const mx = lastLCol + MATCH_W + COL_GAP / 2;
+    const gfMidY = gfY + (MATCH_H * 3) / 4; // bottom slot of GF card
+    paths.push(`M ${lastLCol + MATCH_W} ${lFinalY} H ${mx} V ${gfMidY} H ${gfColX}`);
+  }
 
   return (
     <main className="min-h-screen bg-gray-950 text-white">
@@ -54,94 +135,79 @@ export default function BracketPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto p-6 pt-3">
-        <div className="flex flex-col gap-12" style={{ minWidth: "max-content" }}>
-          <BracketSection label="Winners Bracket" labelColor="#60a5fa"
-            roundIds={state.winnersRounds} state={state} onWin={handleWin} />
-          <BracketSection label="Losers Bracket" labelColor="#f87171"
-            roundIds={state.losersRounds} state={state} onWin={handleWin} />
+      <div className="overflow-x-auto p-6 pt-4">
+        <div className="relative" style={{ width: totalW, height: totalH + 28 }}>
+
+          {/* Section labels */}
+          <div className="absolute text-xs font-semibold text-blue-400"
+            style={{ top: wOffsetY, left: 0, transform: "translateY(-20px)" }}>
+            Winners Bracket
+          </div>
+          <div className="absolute text-xs font-semibold text-red-400"
+            style={{ top: lOffsetY, left: 0, transform: "translateY(-20px)" }}>
+            Losers Bracket
+          </div>
+          <div className="absolute text-xs font-semibold text-yellow-400"
+            style={{ left: gfColX, top: gfY - 20, width: MATCH_W, textAlign: "center" }}>
+            Grand Finals
+          </div>
+
+          {/* SVG connector lines */}
+          <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH + 28}>
+            {paths.map((d, i) => (
+              <path key={i} d={d} fill="none" stroke={stroke} strokeWidth={1.5} />
+            ))}
+          </svg>
+
+          {/* Winners rounds */}
+          {wRounds.map((round, ri) => {
+            const count = round.length;
+            const cx = colX(ri);
+            return (
+              <div key={`w${ri}`}>
+                <div className="absolute text-xs text-gray-500 text-center"
+                  style={{ left: cx, top: wOffsetY - 16, width: MATCH_W }}>
+                  Round {ri + 1}
+                </div>
+                {round.map((id, mi) => (
+                  <div key={id} className="absolute"
+                    style={{ left: cx, top: wOffsetY + cardY(wH, count, mi) }}>
+                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Losers rounds */}
+          {lRounds.map((round, ri) => {
+            const count = round.length;
+            const cx = colX(ri);
+            return (
+              <div key={`l${ri}`}>
+                <div className="absolute text-xs text-gray-500 text-center"
+                  style={{ left: cx, top: lOffsetY - 16, width: MATCH_W }}>
+                  Round {ri + 1}
+                </div>
+                {round.map((id, mi) => (
+                  <div key={id} className="absolute"
+                    style={{ left: cx, top: lOffsetY + cardY(lH, count, mi) }}>
+                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Grand Finals */}
           {gf && (
-            <div>
-              <div className="text-sm font-semibold mb-3" style={{ color: "#fbbf24" }}>Grand Finals</div>
+            <div className="absolute" style={{ left: gfColX, top: gfY }}>
               <MatchCard match={gf} state={state} onWin={handleWin} />
             </div>
           )}
         </div>
       </div>
     </main>
-  );
-}
-
-function BracketSection({ label, labelColor, roundIds, state, onWin }: {
-  label: string; labelColor: string;
-  roundIds: string[][]; state: BracketState;
-  onWin: (id: string, wid: string) => void;
-}) {
-  if (roundIds.length === 0) return null;
-
-  const firstCount = roundIds[0].length;
-  const totalH = sectionHeight(firstCount);
-  const totalW = roundIds.length * (MATCH_W + COL_GAP);
-
-  // Build all connector lines as SVG paths
-  const lines: { x1: number; y1: number; x2: number; y2: number; mx: number }[] = [];
-  for (let ri = 0; ri < roundIds.length - 1; ri++) {
-    const count = roundIds[ri].length;
-    const nextCount = roundIds[ri + 1].length;
-    const colX = ri * (MATCH_W + COL_GAP);
-    const nextColX = colX + MATCH_W + COL_GAP;
-
-    for (let mi = 0; mi < count; mi++) {
-      const y1 = matchY(totalH, count, mi) + MATCH_H / 2;
-      const nextMi = Math.floor(mi / 2);
-      const y2 = matchY(totalH, nextCount, nextMi) + MATCH_H / 2;
-      const mx = colX + MATCH_W + COL_GAP / 2;
-      lines.push({ x1: colX + MATCH_W, y1, x2: nextColX, y2, mx });
-    }
-  }
-
-  return (
-    <div>
-      <div className="text-sm font-semibold mb-5" style={{ color: labelColor }}>{label}</div>
-      <div className="relative" style={{ height: totalH, width: totalW }}>
-
-        {/* Single SVG for all connector lines */}
-        <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH}>
-          {lines.map((l, i) => (
-            <path
-              key={i}
-              d={`M ${l.x1} ${l.y1} H ${l.mx} V ${l.y2} H ${l.x2}`}
-              fill="none" stroke="#374151" strokeWidth={1.5}
-            />
-          ))}
-        </svg>
-
-        {/* Round labels + match cards */}
-        {roundIds.map((round, ri) => {
-          const count = round.length;
-          const colX = ri * (MATCH_W + COL_GAP);
-          return (
-            <div key={ri}>
-              <div
-                className="absolute text-xs text-gray-500 text-center"
-                style={{ left: colX, top: -22, width: MATCH_W }}
-              >
-                Round {ri + 1}
-              </div>
-              {round.map((id, mi) => (
-                <div
-                  key={id}
-                  className="absolute"
-                  style={{ left: colX, top: matchY(totalH, count, mi) }}
-                >
-                  <MatchCard match={state.matches[id]} state={state} onWin={onWin} />
-                </div>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -154,10 +220,8 @@ function MatchCard({ match, state, onWin }: {
   const canPlay = !match.winner && !!p1 && !!p2;
 
   return (
-    <div
-      className="border border-gray-700 rounded overflow-hidden bg-gray-900"
-      style={{ width: MATCH_W, height: MATCH_H }}
-    >
+    <div className="border border-gray-700 rounded overflow-hidden bg-gray-900"
+      style={{ width: MATCH_W, height: MATCH_H }}>
       {([p1, p2] as const).map((player, i) => {
         const isWinner = match.winner?.id === player?.id;
         const isLoser = match.loser?.id === player?.id;
@@ -176,14 +240,9 @@ function MatchCard({ match, state, onWin }: {
             ].filter(Boolean).join(" ")}
           >
             <span className="truncate max-w-[130px]">
-              {player ? (
-                <>
-                  {player.seed && <span className="text-yellow-500 mr-1">[{player.seed}]</span>}
-                  {player.name}
-                </>
-              ) : (
-                <span className="text-gray-600 italic">TBD</span>
-              )}
+              {player
+                ? <>{player.seed && <span className="text-yellow-500 mr-1">[{player.seed}]</span>}{player.name}</>
+                : <span className="text-gray-600 italic">TBD</span>}
             </span>
             {isWinner && <span className="text-green-400 ml-1">✓</span>}
           </button>
