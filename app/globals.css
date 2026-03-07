@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --green: #39ff14;
+  --green-dim: #1a7a08;
+  --green-mid: #22c55e;
+  --amber: #ffb000;
+  --bg: #030a03;
+  --bg-card: #050f05;
+  --border: #1a4a1a;
+  --scanline: rgba(0, 0, 0, 0.25);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  background: var(--bg);
+  color: var(--green);
+  font-family: "Courier New", Courier, monospace;
+  min-height: 100vh;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* CRT scanlines overlay */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    var(--scanline) 0px,
+    var(--scanline) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  pointer-events: none;
+  z-index: 9999;
 }
+
+/* Phosphor screen vignette */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.7) 100%);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* Text glow */
+h1, h2, .glow {
+  text-shadow: 0 0 8px var(--green), 0 0 20px var(--green-dim);
+}
+
+/* Inputs */
+input, select {
+  background: var(--bg-card);
+  color: var(--green);
+  border: 1px solid var(--green-dim);
+  font-family: inherit;
+  outline: none;
+}
+input::placeholder { color: var(--green-dim); }
+input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 6px var(--green-dim); }
+select option { background: var(--bg); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--green-dim); }
