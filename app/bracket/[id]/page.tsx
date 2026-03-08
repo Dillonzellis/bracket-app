@@ -136,7 +136,7 @@ export default function BracketPage() {
 
   return (
     <main className="min-h-screen bg-[var(--bg)]">
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)]">
+      <div className="flex items-center gap-4 px-5 py-5 border-b border-[var(--border)]">
         <button onClick={() => router.push("/")}
           className="text-lg tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">
           ◀ MENU
@@ -166,7 +166,7 @@ export default function BracketPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto p-6 pt-5">
+      <div className="overflow-x-auto p-6 pt-16">
         <div className="relative" style={{ width: totalW, height: totalH + 36 }}>
           <div className="absolute text-lg tracking-widest font-bold text-[var(--text)] glow"
             style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>▸ WINNERS BRACKET</div>
