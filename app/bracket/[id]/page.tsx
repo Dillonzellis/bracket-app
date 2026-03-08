@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, swapPlayers, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
+import { Suspense } from "react";
 import MatchPanel from "./MatchPanel";
 
 const MATCH_W = 280;
@@ -96,6 +97,14 @@ export default function BracketPage() {
     if (!t) { router.push("/"); return; }
     setTimeout(() => setRecord(t), 0);
   }, [id, router]);
+
+  useEffect(() => {
+    const matchId = new URLSearchParams(window.location.search).get("matchId");
+    if (matchId) {
+      setActiveMatchId(matchId);
+      router.replace(window.location.pathname);
+    }
+  }, []);
 
   const [zoom, setZoom] = useState(1);
   const [search, setSearch] = useState("");
@@ -439,6 +448,7 @@ export default function BracketPage() {
         const match = state.matches[activeMatchId];
         const wc = match.bracket === "winners" ? "#39ff14" : match.bracket === "losers" ? "#e8001c" : "#f0c000";
         return (
+          <Suspense>
           <MatchPanel
             match={match}
             state={state}
@@ -450,6 +460,7 @@ export default function BracketPage() {
             onRename={(matchId, slot, name) => update(renamePlayerInMatch(state, matchId, slot, name))}
             onClose={() => setActiveMatchId(null)}
           />
+          </Suspense>
         );
       })()}
 

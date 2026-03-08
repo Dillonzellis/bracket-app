@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Match, BracketState, Game, resolvePlayer } from "@/lib/bracket";
 import { cn } from "@/lib/cn";
 
@@ -17,12 +18,19 @@ type Props = {
 };
 
 export default function MatchPanel({ match, state, defaultFormat, winnerColor, onConfirm, onUndo, onDQ, onRename, onClose }: Props) {
+  const router = useRouter();
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
   const format: 3 | 5 = match.format ?? defaultFormat;
   const existingGames = match.games ?? [];
 
-  const [games, setGames] = useState<Game[]>(existingGames);
+  const [games, setGames] = useState<Game[]>(() => {
+    try {
+      const raw = sessionStorage.getItem("stageResults");
+      if (raw) { sessionStorage.removeItem("stageResults"); return JSON.parse(raw) as Game[]; }
+    } catch {}
+    return existingGames;
+  });
   const [localFormat, setLocalFormat] = useState<3 | 5>(format);
   const [editingSlot, setEditingSlot] = useState<"p1" | "p2" | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -163,6 +171,17 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
 
         {/* Footer actions */}
         <div className="px-4 py-4 border-t border-[var(--border)] space-y-2">
+          <button
+            onClick={() => {
+              const fmt = localFormat;
+              const p1n = encodeURIComponent(p1?.name ?? "P1");
+              const p2n = encodeURIComponent(p2?.name ?? "P2");
+              const returnTo = `${window.location.pathname}?matchId=${encodeURIComponent(match.id)}`;
+              router.push(`/stages?format=${fmt}&p1=${p1n}&p2=${p2n}&returnTo=${encodeURIComponent(returnTo)}`);
+            }}
+            className="w-full py-2 text-sm tracking-widest border border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--text)] hover:text-[var(--text)] transition-colors">
+            ⚔ STAGE STRIKING
+          </button>
           {isComplete ? (
             <>
               <div className="text-sm text-center mb-2" style={{ color: winnerColor }}>
