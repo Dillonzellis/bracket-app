@@ -8,12 +8,12 @@ import { cn } from "@/lib/cn";
 import MatchPanel from "./MatchPanel";
 
 const MATCH_W = 280;
-const MATCH_H = 100;
+const MATCH_H = 120;
 const COL_GAP = 72;
-const SECTION_GAP = 64;
+const SECTION_GAP = 96;
 
 function colX(ri: number) { return ri * (MATCH_W + COL_GAP); }
-function sectionH(n: number) { return Math.max(n, 1) * MATCH_H + Math.max(n - 1, 0) * 12; }
+function sectionH(n: number) { return Math.max(n, 1) * MATCH_H + Math.max(n - 1, 0) * 56; }
 function cardY(totalH: number, count: number, mi: number) {
   const sh = totalH / count;
   return sh * mi + (sh - MATCH_H) / 2;
@@ -37,6 +37,7 @@ export default function BracketPage() {
     setTimeout(() => setRecord(t), 0);
   }, [id, router]);
 
+  const [zoom, setZoom] = useState(1);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
@@ -151,8 +152,16 @@ export default function BracketPage() {
           <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
         </svg>
         <span className="text-xl tracking-widest glow text-[var(--text)]">{record.name}</span>
+        <div className="ml-auto flex items-center gap-1">
+          <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
+            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
+          <button onClick={() => setZoom(1)}
+            className="px-2 h-7 font-mono text-xs text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
+          <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
+            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
+        </div>
         <button onClick={() => setLateEntry(true)}
-          className="ml-auto text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
+          className="text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
           + LATE ENTRY
         </button>
       </div>
@@ -167,7 +176,8 @@ export default function BracketPage() {
       )}
 
       <div className="overflow-x-auto p-6 pt-16">
-        <div className="relative" style={{ width: totalW, height: totalH + 36 }}>
+        <div style={{ width: totalW * zoom, height: (totalH + 36) * zoom }}>
+        <div className="relative origin-top-left" style={{ width: totalW, height: totalH + 36, transform: `scale(${zoom})` }}>
           <div className="absolute text-lg tracking-widest font-bold text-[var(--text)] glow"
             style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>▸ WINNERS BRACKET</div>
           <div className="absolute text-base tracking-widest font-bold text-[#e8001c]"
@@ -219,6 +229,7 @@ export default function BracketPage() {
                 winnerColor="#f0c000" borderColor="#3d3000" />
             </div>
           )}
+        </div>
         </div>
       </div>
 
