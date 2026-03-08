@@ -63,7 +63,6 @@ export function generateBracket(players: Player[]): BracketState {
   // e.g. 12 players: nextPow2=16, byes=4, prelim players=12-4=8 (4 prelim matches)
   const size = nextPowerOf2(players.length);
   const byeCount = size - players.length;
-  const prelimCount = players.length - byeCount; // players who must play in prelim
   const ordered = seededOrder(players);
   const matches: Record<string, Match> = {};
   const winnersRounds: string[][] = [];

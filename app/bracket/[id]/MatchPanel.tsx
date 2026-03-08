@@ -18,7 +18,6 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
   const format: 3 | 5 = match.format ?? defaultFormat;
-  const winsNeeded = Math.ceil(format / 2);
   const existingGames = match.games ?? [];
 
   const [games, setGames] = useState<Game[]>(existingGames);

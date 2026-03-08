@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer } from "@/lib/bracket";
-import { getTournament, saveTournament } from "@/lib/db";
+import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
 import MatchPanel from "./MatchPanel";
 
@@ -29,12 +29,12 @@ function SeedBadge({ seed }: { seed: number }) {
 export default function BracketPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const [record, setRecord] = useState<{ id: string; name: string; createdAt: number; state: BracketState } | null>(null);
+  const [record, setRecord] = useState<TournamentRecord | null>(null);
 
   useEffect(() => {
     const t = getTournament(id);
-    if (!t) return router.push("/");
-    setRecord(t);
+    if (!t) { router.push("/"); return; }
+    setTimeout(() => setRecord(t), 0);
   }, [id, router]);
 
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);

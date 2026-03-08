@@ -174,7 +174,6 @@ describe("reportResult with games and format", () => {
     const matchId = state.winnersRounds[0][0];
     const match = state.matches[matchId];
     const p1 = resolvePlayer(state, match, "p1")!;
-    const p2 = resolvePlayer(state, match, "p2")!;
 
     const next = JSON.parse(JSON.stringify(state)) as BracketState;
     const games: Game[] = [
