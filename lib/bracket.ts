@@ -211,37 +211,29 @@ export function generateBracket(players: Player[]): BracketState {
       const wRound = winnersRounds[wi];
       // Drop round: each L survivor vs a W loser
       const dropRound: string[] = [];
-      const bypassWLosers: string[] = [];
       for (let i = 0; i < wRound.length; i++) {
-        if (i < prevLR.length) {
-          const id = mid("l", losersRounds.length + 1, i);
-          matches[id] = {
-            id, round: losersRounds.length + 1, matchIndex: i,
-            p1Source: prevLR[i],
-            p2Source: null,
-            p2SourceLoser: wRound[i],
-            winner: null, loser: null, bracket: "losers",
-          };
-          dropRound.push(id);
-        } else {
-          bypassWLosers.push(wRound[i]);
-        }
+        const id = mid("l", losersRounds.length + 1, i);
+        matches[id] = {
+          id, round: losersRounds.length + 1, matchIndex: i,
+          p1Source: prevLR[i],
+          p2Source: null,
+          p2SourceLoser: wRound[i],
+          winner: null, loser: null, bracket: "losers",
+        };
+        dropRound.push(id);
       }
       if (dropRound.length > 0) { losersRounds.push(dropRound); prevLR = dropRound; }
 
       // Consolidation
-      const con: string[] = [...prevLR, ...bypassWLosers];
+      const con: string[] = [...prevLR];
       if (con.length > 1) {
         const conRound: string[] = [];
         for (let i = 0; i < Math.ceil(con.length / 2); i++) {
           const src1 = con[i * 2], src2 = con[i * 2 + 1] ?? null;
           const id = mid("l", losersRounds.length + 1, i);
-          const s1bye = bypassWLosers.includes(src1);
-          const s2bye = src2 ? bypassWLosers.includes(src2) : false;
           matches[id] = {
             id, round: losersRounds.length + 1, matchIndex: i,
-            p1Source: s1bye ? null : src1, p1SourceLoser: s1bye ? src1 : undefined,
-            p2Source: s2bye ? null : src2, p2SourceLoser: s2bye ? src2! : undefined,
+            p1Source: src1, p2Source: src2,
             winner: null, loser: null, bracket: "losers",
           };
           conRound.push(id);
@@ -252,7 +244,10 @@ export function generateBracket(players: Player[]): BracketState {
     }
   } else {
     // No prelims (power-of-2 player count) — standard alternating drop/consolidate
-    for (let wi = 0; wi < winnersRounds.length; wi++) {
+    // Skip the last winners round (winners final) — its loser is 2nd place, not a L bracket entrant,
+    // unless it's the only W round (n=2 degenerate case).
+    const wLimit = winnersRounds.length > 1 ? winnersRounds.length - 1 : winnersRounds.length;
+    for (let wi = 0; wi < wLimit; wi++) {
       const wRound = winnersRounds[wi];
       const dropRound: string[] = [];
       const bypassWLosers: string[] = [];
@@ -288,6 +283,19 @@ export function generateBracket(players: Player[]): BracketState {
         }
         losersRounds.push(conRound);
         prevLR = conRound;
+      } else if (con.length === 1) {
+        // Single bypass loser with no L survivors — create a bye-holder round so GF has a valid L source
+        const src = con[0];
+        const isBye = bypassWLosers.includes(src);
+        const id = mid("l", losersRounds.length + 1, 0);
+        matches[id] = {
+          id, round: losersRounds.length + 1, matchIndex: 0,
+          p1Source: isBye ? null : src, p1SourceLoser: isBye ? src : undefined,
+          p2Source: null,
+          winner: null, loser: null, bracket: "losers",
+        };
+        losersRounds.push([id]);
+        prevLR = [id];
       }
     }
   }

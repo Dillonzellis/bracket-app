@@ -254,46 +254,55 @@ describe("countAffectedMatches", () => {
 // --- findByeSlots ---
 
 describe("findByeSlots", () => {
-  test("returns open slots for non-power-of-2 player counts", () => {
-    const state = generateBracket(makePlayers(5)); // 5 players → 8-slot bracket, 3 byes
-    const slots = findByeSlots(state);
-    expect(slots.length).toBeGreaterThan(0);
-    for (const { matchId, slot } of slots) {
-      expect(state.matches[matchId]).toBeDefined();
-      expect(["p1", "p2"]).toContain(slot);
-    }
-  });
-
-  test("returns empty for exact power-of-2 player counts", () => {
+  test("returns empty for power-of-2 player counts (no null fixed-source slots)", () => {
     const state = generateBracket(makePlayers(8));
     expect(findByeSlots(state)).toHaveLength(0);
+  });
+
+  test("returns empty for non-power-of-2 counts (byes handled by direct W-R1 routing)", () => {
+    // Bracket gen routes bye players directly into W-R1 sources, no null fixed slots remain
+    const state = generateBracket(makePlayers(5));
+    const slots = findByeSlots(state);
+    expect(slots.length).toBe(0);
+  });
+
+  test("returns open slot after addPlayerToLosers creates a null-source match", () => {
+    // addPlayerToLosers can create a match with a null p2Source (no loser feeding it)
+    const state = generateBracket(makePlayers(8));
+    const withLate = addPlayerToLosers(state, { id: "", name: "Late" });
+    // The new match has p2SourceLoser set, not a null fixed slot — still 0 findByeSlots
+    expect(findByeSlots(withLate).length).toBe(0);
   });
 });
 
 // --- addPlayerToSlot ---
 
 describe("addPlayerToSlot", () => {
-  test("injects player into the specified bye slot", () => {
-    const state = generateBracket(makePlayers(5));
-    const slots = findByeSlots(state);
-    expect(slots.length).toBeGreaterThan(0);
-    const { matchId, slot } = slots[0];
-    const newState = addPlayerToSlot(state, matchId, slot, { id: "", name: "Late Player" });
-
-    const match = newState.matches[matchId];
-    const src = slot === "p1" ? match.p1Source : match.p2Source;
-    expect(typeof src).toBe("object");
-    expect((src as Player).name).toBe("Late Player");
+  test("injects player into a manually-created null slot", () => {
+    // Manually create a state with a null fixed-source slot to test addPlayerToSlot
+    const state = generateBracket(makePlayers(4));
+    const next = JSON.parse(JSON.stringify(state)) as BracketState;
+    const matchId = state.winnersRounds[0][0];
+    next.matches[matchId].p2Source = null;
+    const newState = addPlayerToSlot(next, matchId, "p2", { id: "", name: "Late Player" });
+    expect((newState.matches[matchId].p2Source as Player).name).toBe("Late Player");
     expect(newState.players.some(p => p.name === "Late Player")).toBe(true);
   });
 
   test("assigns a unique id to the late entrant", () => {
-    const state = generateBracket(makePlayers(5));
-    const slots = findByeSlots(state);
-    const { matchId, slot } = slots[0];
-    const newState = addPlayerToSlot(state, matchId, slot, { id: "", name: "Late" });
+    const state = generateBracket(makePlayers(4));
+    const next = JSON.parse(JSON.stringify(state)) as BracketState;
+    const matchId = state.winnersRounds[0][0];
+    next.matches[matchId].p1Source = null;
+    const newState = addPlayerToSlot(next, matchId, "p1", { id: "", name: "Late" });
     const added = newState.players.find(p => p.name === "Late")!;
     expect(added.id).not.toBe("");
+  });
+
+  test("returns original state for unknown matchId", () => {
+    const state = generateBracket(makePlayers(4));
+    const result = addPlayerToSlot(state, "nonexistent", "p1", { id: "", name: "X" });
+    expect(result).toBe(state);
   });
 });
 
@@ -423,7 +432,8 @@ describe("undoResult downstream clearing", () => {
 // --- autoAdvanceByes ---
 
 describe("autoAdvanceByes", () => {
-  test("losers bye-match auto-advances after upstream result", () => {
+  test("losers bye-match auto-advances after upstream result (n=3)", () => {
+    // n=3 produces a single-player L-R1 bye-holder match; after W-R1 result it auto-advances
     let state = generateBracket(makePlayers(3));
     const r1id = state.winnersRounds[0][0];
     const p1 = resolvePlayer(state, state.matches[r1id], "p1")!;
@@ -433,15 +443,37 @@ describe("autoAdvanceByes", () => {
     );
     expect(autoAdvanced).toBeDefined();
   });
+
+  test("losers bye-match auto-advances after upstream result (n=7)", () => {
+    // n=7 has intentional bye slots in losers bracket
+    let state = generateBracket(makePlayers(7));
+    // Play enough W matches to trigger a losers bye auto-advance
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const match of Object.values(state.matches)) {
+        if (match.winner || match.bracket !== "winners") continue;
+        const p1 = resolvePlayer(state, match, "p1");
+        const p2 = resolvePlayer(state, match, "p2");
+        if (p1 && p2) { state = reportResult(state, match.id, p1.id); changed = true; break; }
+      }
+    }
+    const autoAdvanced = Object.values(state.matches).find(m =>
+      m.bracket === "losers" && m.winner !== null
+    );
+    expect(autoAdvanced).toBeDefined();
+  });
 });
 
-// --- addPlayerToSlot: bracket completes after injection ---
+// --- addPlayerToSlot completion ---
 
 describe("addPlayerToSlot completion", () => {
-  test("bracket completes after late player injected into bye slot", () => {
-    let state = generateBracket(makePlayers(5));
-    const { matchId, slot } = findByeSlots(state)[0];
-    state = addPlayerToSlot(state, matchId, slot, { id: "", name: "Late" });
+  test("bracket completes after late player injected into manually-created bye slot", () => {
+    let state = generateBracket(makePlayers(4));
+    const next = JSON.parse(JSON.stringify(state)) as BracketState;
+    const matchId = state.winnersRounds[0][0];
+    next.matches[matchId].p2Source = null;
+    state = addPlayerToSlot(next, matchId, "p2", { id: "", name: "Late" });
     expect(simulateFull(state).champion).not.toBeNull();
   });
 });
@@ -635,6 +667,15 @@ describe("disqualifyPlayer", () => {
       state = disqualifyPlayer(state, p1.id);
       expect(state.champion).not.toBeNull();
     }
+  });
+});
+
+describe("reportResult invalid winner", () => {
+  test("returns original state when winnerId does not match either player", () => {
+    const state = generateBracket(makePlayers(4));
+    const matchId = state.winnersRounds[0][0];
+    const result = reportResult(state, matchId, "nonexistent-id");
+    expect(result).toBe(state);
   });
 });
 

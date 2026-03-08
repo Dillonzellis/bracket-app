@@ -11,10 +11,33 @@ const MATCH_W = 280;
 const MATCH_H = 120;
 const COL_GAP = 72;
 const SECTION_GAP = 96;
+const L_SUB_GAP = 32; // gap between drop and consolidation sub-rounds within a losers column
 
 const ROW_H = MATCH_H + 56; // vertical slot height for the densest round
 
 function colX(ri: number) { return ri * (MATCH_W + COL_GAP); }
+
+// Group losers rounds into visual columns: each column holds a [drop, consolidate] pair.
+// Returns an array of column groups, each with round indices and their X offsets within the column.
+function buildLosersColumns(lRounds: string[][]): { roundIdx: number; subX: number }[][] {
+  const cols: { roundIdx: number; subX: number }[][] = [];
+  let ri = 0;
+  while (ri < lRounds.length) {
+    const drop = ri;
+    const con = ri + 1 < lRounds.length && lRounds[ri + 1].length < lRounds[ri].length ? ri + 1 : null;
+    if (con !== null) {
+      cols.push([
+        { roundIdx: drop, subX: 0 },
+        { roundIdx: con, subX: MATCH_W + L_SUB_GAP },
+      ]);
+      ri += 2;
+    } else {
+      cols.push([{ roundIdx: drop, subX: 0 }]);
+      ri += 1;
+    }
+  }
+  return cols;
+}
 
 // Build a per-round, per-match Y position table.
 // The densest round defines the base grid; all other rounds are positioned
@@ -161,8 +184,16 @@ export default function BracketPage() {
   const lYTable = buildYTable(lRounds, state.matches);
   const wH = sectionH(wRounds);
   const lH = sectionH(lRounds);
-  const numCols = Math.max(wRounds.length, lRounds.length);
-  const gfColX = colX(numCols);
+  const lCols = buildLosersColumns(lRounds);
+  // Each losers column occupies MATCH_W + L_SUB_GAP + MATCH_W wide, then COL_GAP to next column
+  const lColW = MATCH_W * 2 + L_SUB_GAP;
+  function lColX(ci: number) { return ci * (lColW + COL_GAP); }
+  const numCols = Math.max(wRounds.length, lCols.length);
+  // Winners uses colX (MATCH_W + COL_GAP steps), losers uses lColX (lColW + COL_GAP steps)
+  // GF goes after the wider of the two
+  const wTotalW = wRounds.length > 0 ? colX(wRounds.length - 1) + MATCH_W : 0;
+  const lTotalW = lCols.length > 0 ? lColX(lCols.length - 1) + lColW : 0;
+  const gfColX = Math.max(wTotalW, lTotalW) + COL_GAP;
   const totalW = gfColX + MATCH_W + 24;
   const totalH = wH + SECTION_GAP + lH;
   const wOffsetY = 0;
@@ -193,6 +224,15 @@ export default function BracketPage() {
   const wParent = buildParentMap(wRounds);
   const lParent = buildParentMap(lRounds);
 
+  // Build X position lookup for each losers round index
+  const lRoundX: number[] = new Array(lRounds.length).fill(0);
+  for (const col of lCols) {
+    for (const { roundIdx, subX } of col) {
+      const ci = lCols.indexOf(col);
+      lRoundX[roundIdx] = lColX(ci) + subX;
+    }
+  }
+
   for (let ri = 0; ri < wRounds.length - 1; ri++) {
     const cx = colX(ri);
     for (let mi = 0; mi < wRounds[ri].length; mi++) {
@@ -203,12 +243,13 @@ export default function BracketPage() {
     }
   }
   for (let ri = 0; ri < lRounds.length - 1; ri++) {
-    const cx = colX(ri);
+    const cx = lRoundX[ri];
+    const nx = lRoundX[ri + 1];
     for (let mi = 0; mi < lRounds[ri].length; mi++) {
       const pmi = lParent[ri][mi];
       if (pmi === null) continue;
-      addPath(cx + MATCH_W, lOffsetY + lYTable[ri][mi] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2,
-        lOffsetY + lYTable[ri + 1][pmi] + MATCH_H / 2, colX(ri + 1), "#3d0820");
+      addPath(cx + MATCH_W, lOffsetY + lYTable[ri][mi] + MATCH_H / 2, cx + MATCH_W + (nx - cx - MATCH_W) / 2,
+        lOffsetY + lYTable[ri + 1][pmi] + MATCH_H / 2, nx, "#3d0820");
     }
   }
   if (wRounds.length > 0) {
@@ -216,7 +257,7 @@ export default function BracketPage() {
     addPath(cx + MATCH_W, wOffsetY + wYTable[wRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + MATCH_H / 4, gfColX, "#1a3a1a");
   }
   if (lRounds.length > 0) {
-    const cx = colX(lRounds.length - 1);
+    const cx = lRoundX[lRounds.length - 1];
     addPath(cx + MATCH_W, lOffsetY + lYTable[lRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + (MATCH_H * 3) / 4, gfColX, "#3d0820");
   }
 
@@ -319,21 +360,29 @@ export default function BracketPage() {
             );
           })}
 
-          {lRounds.map((round, ri) => {
-            const cx = colX(ri);
-            return (
-              <div key={`l${ri}`}>
-                <div className="absolute text-base text-center text-(--text-dim)"
-                  style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>R{ri + 1}</div>
-                {round.map((id, mi) => (
-                  <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + lYTable[ri][mi] }}>
-                    <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
-                      winnerColor="#e8001c" borderColor="#3d0820" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
+          {lCols.map((col, ci) => (
+            <div key={`lc${ci}`}>
+              {col.map(({ roundIdx, subX }) => {
+                const round = lRounds[roundIdx];
+                const cx = lColX(ci) + subX;
+                const label = col.length === 2
+                  ? (subX === 0 ? `L-R${roundIdx + 1}` : `L-R${roundIdx + 1}`)
+                  : `L-R${roundIdx + 1}`;
+                return (
+                  <div key={`l${roundIdx}`}>
+                    <div className="absolute text-base text-center text-(--text-dim)"
+                      style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>{label}</div>
+                    {round.map((id, mi) => (
+                      <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + lYTable[roundIdx][mi] }}>
+                        <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
+                          winnerColor="#e8001c" borderColor="#3d0820" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          ))}
 
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
