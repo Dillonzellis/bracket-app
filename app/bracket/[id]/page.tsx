@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { BracketState, Match, generateBracket, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer } from "@/lib/bracket";
+import { useRouter, useParams } from "next/navigation";
+import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer } from "@/lib/bracket";
+import { getTournament, saveTournament } from "@/lib/db";
 import { cn } from "@/lib/cn";
+import MatchPanel from "./MatchPanel";
 
 const MATCH_W = 280;
 const MATCH_H = 100;
@@ -21,61 +23,74 @@ function midY(totalH: number, count: number, mi: number) {
 }
 
 function SeedBadge({ seed }: { seed: number }) {
-  return (
-    <span className="text-xs text-[var(--text-dim)] mr-1.5 shrink-0">[{seed}]</span>
-  );
+  return <span className="text-xs text-[var(--text-dim)] ml-1.5 shrink-0">[{seed}]</span>;
 }
 
 export default function BracketPage() {
   const router = useRouter();
-  const [state, setState] = useState<BracketState | null>(null);
+  const { id } = useParams<{ id: string }>();
+  const [record, setRecord] = useState<{ id: string; name: string; createdAt: number; state: BracketState } | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem("bracket-players");
-    if (!raw) return router.push("/");
-    setState(generateBracket(JSON.parse(raw)));
-  }, [router]);
+    const t = getTournament(id);
+    if (!t) return router.push("/");
+    setRecord(t);
+  }, [id, router]);
 
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
 
-  const handleWin = (matchId: string, winnerId: string) =>
-    setState((s) => (s ? reportResult(s, matchId, winnerId) : s));
+  const update = (newState: BracketState) => {
+    if (!record) return;
+    const updated = { ...record, state: newState };
+    setRecord(updated);
+    saveTournament(updated);
+  };
+
+  const handleWin = (matchId: string, winnerId: string, games: Game[], format: 3 | 5) => {
+    if (!record) return;
+    const next = JSON.parse(JSON.stringify(record.state)) as BracketState;
+    const match = next.matches[matchId];
+    if (match) { match.games = games; match.format = format; }
+    update(reportResult(next, matchId, winnerId));
+    setActiveMatchId(null);
+  };
 
   const handleUndo = (matchId: string) => {
-    if (!state) return;
-    const match = state.matches[matchId];
-    const affected = countAffectedMatches(state, matchId);
+    if (!record) return;
+    const match = record.state.matches[matchId];
+    const affected = countAffectedMatches(record.state, matchId);
     const desc = `Reset ${match.winner!.name} def. ${match.loser?.name ?? "TBD"}` +
       (affected > 0 ? ` — also clears ${affected} downstream match${affected > 1 ? "es" : ""}` : "");
+    setActiveMatchId(null);
     setConfirmUndo({ matchId, description: desc });
   };
 
   const confirmAndUndo = () => {
-    if (!confirmUndo) return;
-    setState((s) => (s ? undoResult(s, confirmUndo.matchId) : s));
+    if (!confirmUndo || !record) return;
+    update(undoResult(record.state, confirmUndo.matchId));
     setConfirmUndo(null);
   };
 
   const handleLateEntry = () => {
-    if (!state || !lateName.trim()) return;
-    const byeSlots = findByeSlots(state);
+    if (!record || !lateName.trim()) return;
+    const byeSlots = findByeSlots(record.state);
     if (byeSlots.length > 0) {
       if (!lateSlot) return;
       const [matchId, slot] = lateSlot.split("|") as [string, "p1" | "p2"];
-      setState(addPlayerToSlot(state, matchId, slot, { id: "", name: lateName.trim() }));
+      update(addPlayerToSlot(record.state, matchId, slot, { id: "", name: lateName.trim() }));
     } else {
-      setState(addPlayerToLosers(state, { id: "", name: lateName.trim() }));
+      update(addPlayerToLosers(record.state, { id: "", name: lateName.trim() }));
     }
-    setLateName("");
-    setLateSlot("");
-    setLateEntry(false);
+    setLateName(""); setLateSlot(""); setLateEntry(false);
   };
 
-  if (!state) return null;
+  if (!record) return null;
 
+  const state = record.state;
   const gf = state.matches[state.grandFinalsId];
   const wRounds = state.winnersRounds;
   const lRounds = state.losersRounds;
@@ -121,15 +136,11 @@ export default function BracketPage() {
 
   return (
     <main className="min-h-screen bg-[var(--bg)]">
-      {/* Header */}
       <div className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)]">
-        <button
-          onClick={() => router.push("/")}
-          className="text-lg tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors"
-        >
+        <button onClick={() => router.push("/")}
+          className="text-lg tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">
           ◀ MENU
         </button>
-
         <svg width="32" height="16" viewBox="0 0 120 60" className="opacity-50">
           <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="2"/>
           <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
@@ -139,15 +150,9 @@ export default function BracketPage() {
           <circle cx="92" cy="40" r="5" fill="#8888ff"/>
           <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
         </svg>
-
-        <span className="text-xl tracking-widest glow text-[var(--text)]">
-          SSBM TOURNAMENT — DOUBLE ELIM
-        </span>
-
-        <button
-          onClick={() => setLateEntry(true)}
-          className="ml-auto text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]"
-        >
+        <span className="text-xl tracking-widest glow text-[var(--text)]">{record.name}</span>
+        <button onClick={() => setLateEntry(true)}
+          className="ml-auto text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
           + LATE ENTRY
         </button>
       </div>
@@ -163,19 +168,12 @@ export default function BracketPage() {
 
       <div className="overflow-x-auto p-6 pt-5">
         <div className="relative" style={{ width: totalW, height: totalH + 36 }}>
-
           <div className="absolute text-lg tracking-widest font-bold text-[var(--text)] glow"
-            style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>
-            ▸ WINNERS BRACKET
-          </div>
+            style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>▸ WINNERS BRACKET</div>
           <div className="absolute text-base tracking-widest font-bold text-[#e8001c]"
-            style={{ top: lOffsetY, left: 0, transform: "translateY(-22px)", textShadow: "0 0 8px #e8001c" }}>
-            ▸ LOSERS BRACKET
-          </div>
+            style={{ top: lOffsetY, left: 0, transform: "translateY(-22px)", textShadow: "0 0 8px #e8001c" }}>▸ LOSERS BRACKET</div>
           <div className="absolute text-base tracking-widest font-bold text-center text-[#f0c000]"
-            style={{ left: gfColX, top: gfY - 24, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>
-            ★ GRAND FINALS
-          </div>
+            style={{ left: gfColX, top: gfY - 24, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>★ GRAND FINALS</div>
 
           <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH + 36}>
             {paths.map((p, i) => <path key={i} d={p.d} fill="none" stroke={p.color} strokeWidth={1.5} />)}
@@ -187,12 +185,10 @@ export default function BracketPage() {
             return (
               <div key={`w${ri}`}>
                 <div className="absolute text-base text-center text-[var(--text-dim)]"
-                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>
-                  R{ri + 1}
-                </div>
+                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>R{ri + 1}</div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + cardY(wH, count, mi) }}>
-                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} onUndo={handleUndo}
+                    <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
                       winnerColor="#39ff14" borderColor="#1a3a1a" />
                   </div>
                 ))}
@@ -206,12 +202,10 @@ export default function BracketPage() {
             return (
               <div key={`l${ri}`}>
                 <div className="absolute text-base text-center text-[var(--text-dim)]"
-                  style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>
-                  R{ri + 1}
-                </div>
+                  style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>R{ri + 1}</div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + cardY(lH, count, mi) }}>
-                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} onUndo={handleUndo}
+                    <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
                       winnerColor="#e8001c" borderColor="#3d0820" />
                   </div>
                 ))}
@@ -221,12 +215,28 @@ export default function BracketPage() {
 
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
-              <MatchCard match={gf} state={state} onWin={handleWin} onUndo={handleUndo}
+              <MatchCard match={gf} state={state} onOpen={setActiveMatchId}
                 winnerColor="#f0c000" borderColor="#3d3000" />
             </div>
           )}
         </div>
       </div>
+
+      {activeMatchId && record && (() => {
+        const match = state.matches[activeMatchId];
+        const wc = match.bracket === "winners" ? "#39ff14" : match.bracket === "losers" ? "#e8001c" : "#f0c000";
+        return (
+          <MatchPanel
+            match={match}
+            state={state}
+            defaultFormat={record.defaultFormat ?? 3}
+            winnerColor={wc}
+            onConfirm={handleWin}
+            onUndo={handleUndo}
+            onClose={() => setActiveMatchId(null)}
+          />
+        );
+      })()}
 
       {lateEntry && (() => {
         const byeSlots = findByeSlots(state);
@@ -234,19 +244,10 @@ export default function BracketPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
             <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 max-w-sm w-full mx-4 font-mono">
               <div className="text-base tracking-widest font-bold text-[var(--text)] mb-3">+ LATE ENTRY</div>
-              <input
-                className="w-full px-2 py-2 text-base mb-3"
-                placeholder="Player name"
-                value={lateName}
-                onChange={e => setLateName(e.target.value)}
-                autoFocus
-              />
+              <input className="w-full px-2 py-2 text-base mb-3" placeholder="Player name"
+                value={lateName} onChange={e => setLateName(e.target.value)} autoFocus />
               {byeSlots.length > 0 ? (
-                <select
-                  className="w-full px-2 py-2 text-sm mb-3"
-                  value={lateSlot}
-                  onChange={e => setLateSlot(e.target.value)}
-                >
+                <select className="w-full px-2 py-2 text-sm mb-3" value={lateSlot} onChange={e => setLateSlot(e.target.value)}>
                   <option value="">Select open bye slot…</option>
                   {byeSlots.map(({ matchId, slot }) => (
                     <option key={`${matchId}|${slot}`} value={`${matchId}|${slot}`}>
@@ -297,36 +298,33 @@ export default function BracketPage() {
   );
 }
 
-function MatchCard({ match, state, onWin, onUndo, winnerColor, borderColor }: {
+function MatchCard({ match, state, onOpen, winnerColor, borderColor }: {
   match: Match; state: BracketState;
-  onWin: (id: string, wid: string) => void;
-  onUndo: (id: string) => void;
+  onOpen: (id: string) => void;
   winnerColor: string; borderColor: string;
 }) {
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
-  const canPlay = !match.winner && !!p1 && !!p2;
+  const hasResult = !!match.winner;
+  const p1Wins = match.games?.filter(g => g.winner === "p1").length ?? 0;
+  const p2Wins = match.games?.filter(g => g.winner === "p2").length ?? 0;
 
   return (
-    <div
-      className="relative overflow-hidden bg-[var(--bg-card)]"
+    <div className="relative overflow-hidden bg-[var(--bg-card)] cursor-pointer"
+      onClick={() => onOpen(match.id)}
       style={{
         width: MATCH_W, height: MATCH_H,
-        border: `1px solid ${match.winner ? winnerColor : borderColor}`,
-        boxShadow: match.winner ? `0 0 10px ${winnerColor}33` : "none",
-      }}
-    >
+        border: `1px solid ${hasResult ? winnerColor : borderColor}`,
+        boxShadow: hasResult ? `0 0 10px ${winnerColor}33` : "none",
+      }}>
       {([p1, p2] as const).map((player, i) => {
         const isWinner = match.winner?.id === player?.id;
         const isLoser = match.loser?.id === player?.id;
+        const gameScore = match.games ? (i === 0 ? p1Wins : p2Wins) : null;
         return (
-          <button
-            key={i}
-            disabled={!canPlay || !player}
-            onClick={() => player && canPlay && onWin(match.id, player.id)}
+          <div key={i}
             className={cn(
-              "w-full flex items-center justify-between px-2 font-mono text-base tracking-wide transition-colors",
-              canPlay && player ? "cursor-pointer" : "cursor-default",
+              "w-full flex items-center justify-between px-2 font-mono text-base tracking-wide",
               isLoser && "line-through"
             )}
             style={{
@@ -336,27 +334,20 @@ function MatchCard({ match, state, onWin, onUndo, winnerColor, borderColor }: {
               color: isWinner ? winnerColor : isLoser ? "var(--text-dim)" : "var(--text)",
               textShadow: isWinner ? `0 0 6px ${winnerColor}` : "none",
             }}
-            onMouseEnter={e => { if (canPlay && player) (e.currentTarget as HTMLElement).style.background = `${winnerColor}15`; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isWinner ? `${winnerColor}20` : "transparent"; }}
           >
-            <span className="flex items-center overflow-hidden max-w-[180px]">
+            <span className="flex items-center overflow-hidden max-w-[200px]">
               <span className="overflow-hidden text-ellipsis whitespace-nowrap">
                 {player ? player.name : <span className="text-[var(--text-dim)] italic">-- TBD --</span>}
               </span>
               {player?.seed && <SeedBadge seed={player.seed} />}
             </span>
-            {isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>}
-          </button>
+            {gameScore !== null
+              ? <span className="text-sm shrink-0" style={{ color: isWinner ? winnerColor : "var(--text-dim)" }}>{gameScore}</span>
+              : isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>
+            }
+          </div>
         );
       })}
-      {match.winner && (
-        <button
-          onClick={() => onUndo(match.id)}
-          className="absolute top-1 right-1 w-7 h-7 flex items-center justify-center text-sm font-mono text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-white/10 transition-colors"
-        >
-          ✕
-        </button>
-      )}
     </div>
   );
 }

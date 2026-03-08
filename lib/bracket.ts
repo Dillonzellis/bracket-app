@@ -4,6 +4,8 @@ export type Player = {
   seed?: number;
 };
 
+export type Game = { winner: "p1" | "p2" };
+
 export type Match = {
   id: string;
   round: number;
@@ -15,6 +17,8 @@ export type Match = {
   winner: Player | null;
   loser: Player | null;
   bracket: "winners" | "losers" | "grand-finals";
+  format?: 3 | 5;
+  games?: Game[];
 };
 
 export type BracketState = {
