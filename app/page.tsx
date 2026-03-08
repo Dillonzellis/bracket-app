@@ -4,38 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Player } from "@/lib/bracket";
 
-// GCN button colors matching actual controller
-const SEED_BUTTONS = [
-  { seed: 1, label: "A", color: "#00c846", bg: "#003d16" },
-  { seed: 2, label: "B", color: "#e8001c", bg: "#3d0008" },
-  { seed: 3, label: "X", color: "#c8c8ff", bg: "#1a1a3d" },
-];
-
-function GCNButton({ label, color, bg, active, onClick }: {
-  label: string; color: string; bg: string; active: boolean; onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={`Seed ${label}`}
-      style={{
-        width: 26, height: 26, borderRadius: "50%",
-        background: active ? color : bg,
-        border: `2px solid ${color}`,
-        color: active ? "#000" : color,
-        fontSize: 12, fontWeight: "bold",
-        fontFamily: "inherit",
-        cursor: "pointer",
-        boxShadow: active ? `0 0 8px ${color}` : "none",
-        transition: "all 0.1s",
-        flexShrink: 0,
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
 export default function Home() {
   const router = useRouter();
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
@@ -46,13 +14,13 @@ export default function Home() {
   const updateName = (i: number, val: string) =>
     setNames((n) => n.map((v, idx) => (idx === i ? val : v)));
 
-  const toggleSeed = (playerIdx: number, seed: number) => {
+  const setSeed = (playerIdx: number, seed: number | undefined) => {
     setSeeds((s) => {
       const next = { ...s };
-      // Remove existing assignment for this seed
-      Object.keys(next).forEach((k) => { if (next[+k] === seed) delete next[+k]; });
-      if (next[playerIdx] === seed) delete next[playerIdx];
-      else next[playerIdx] = seed;
+      // Clear any other player that had this seed
+      if (seed) Object.keys(next).forEach((k) => { if (next[+k] === seed) delete next[+k]; });
+      if (seed) next[playerIdx] = seed;
+      else delete next[playerIdx];
       return next;
     });
   };
@@ -77,34 +45,23 @@ export default function Home() {
       {/* GCN controller SVG decoration */}
       <div className="mb-6 opacity-30">
         <svg width="120" height="60" viewBox="0 0 120 60">
-          {/* Controller body */}
           <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="1.5"/>
-          {/* Left grip */}
           <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
-          {/* Right grip */}
           <ellipse cx="102" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
-          {/* D-pad */}
           <rect x="28" y="30" width="5" height="14" rx="1" fill="#7b2fbe"/>
           <rect x="24" y="34" width="13" height="5" rx="1" fill="#7b2fbe"/>
-          {/* A button */}
           <circle cx="82" cy="32" r="7" fill="#00c846" opacity="0.8"/>
           <text x="82" y="36" textAnchor="middle" fontSize="8" fill="#000" fontWeight="bold">A</text>
-          {/* B button */}
           <circle cx="70" cy="40" r="5" fill="#e8001c" opacity="0.8"/>
           <text x="70" y="44" textAnchor="middle" fontSize="7" fill="#fff" fontWeight="bold">B</text>
-          {/* X button */}
           <circle cx="92" cy="40" r="5" fill="#8888ff" opacity="0.8"/>
           <text x="92" y="44" textAnchor="middle" fontSize="7" fill="#fff" fontWeight="bold">X</text>
-          {/* Y button */}
           <circle cx="82" cy="48" r="4" fill="#888" opacity="0.8"/>
           <text x="82" y="51" textAnchor="middle" fontSize="6" fill="#fff" fontWeight="bold">Y</text>
-          {/* C-stick */}
           <circle cx="68" cy="22" r="6" fill="#f0c000" opacity="0.6"/>
           <text x="68" y="26" textAnchor="middle" fontSize="6" fill="#000" fontWeight="bold">C</text>
-          {/* Analog stick */}
           <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
           <circle cx="44" cy="24" r="4" fill="#7b2fbe" opacity="0.5"/>
-          {/* Start */}
           <circle cx="60" cy="30" r="4" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1"/>
           <text x="60" y="33" textAnchor="middle" fontSize="5" fill="#7b2fbe">ST</text>
         </svg>
@@ -112,22 +69,18 @@ export default function Home() {
 
       {/* Title */}
       <div className="text-center mb-8">
-        <div className="text-sm mb-1" style={{ color: "var(--text-dim)" }}>── SUPER SMASH BROS. MELEE ──</div>
-        <h1 className="text-4xl font-bold tracking-widest glow">TOURNAMENT</h1>
-        <div className="text-sm tracking-widest mt-1" style={{ color: "var(--text-dim)" }}>DOUBLE ELIMINATION BRACKET</div>
+        <div className="text-xs md:text-sm mb-1 text-[var(--text-dim)]">── SUPER SMASH BROS. MELEE ──</div>
+        <h1 className="text-5xl md:text-4xl font-bold tracking-widest glow">TOURNAMENT</h1>
+        <div className="text-xs md:text-sm tracking-widest mt-1 text-[var(--text-dim)]">DOUBLE ELIMINATION BRACKET</div>
       </div>
 
       {/* Quick load */}
       <div className="mb-5 w-full max-w-md">
-        <div className="text-sm mb-2" style={{ color: "var(--text-dim)" }}>&gt; QUICK FILL:</div>
+        <div className="text-sm mb-2 text-[var(--text-dim)]">&gt; QUICK FILL:</div>
         <div className="flex gap-1.5 flex-wrap">
           {[3, 4, 5, 6, 7, 8, 10, 12, 16, 24, 32].map((n) => (
             <button key={n} onClick={() => loadStub(n)}
-              className="text-sm px-2 py-1 transition"
-              style={{ border: "1px solid var(--border)", color: "var(--text-dim)", background: "transparent", fontFamily: "inherit" }}
-              onMouseEnter={e => { (e.target as HTMLElement).style.borderColor = "var(--purple-light)"; (e.target as HTMLElement).style.color = "var(--purple-light)"; }}
-              onMouseLeave={e => { (e.target as HTMLElement).style.borderColor = "var(--border)"; (e.target as HTMLElement).style.color = "var(--text-dim)"; }}
-            >
+              className="text-sm px-2 py-1 font-mono border border-[var(--border)] text-[var(--text-dim)] bg-transparent hover:border-[var(--text)] hover:text-[var(--text)] transition-colors">
               {n}P
             </button>
           ))}
@@ -136,46 +89,43 @@ export default function Home() {
 
       {/* Player list */}
       <div className="w-full max-w-md space-y-2">
-        <div className="text-sm mb-1" style={{ color: "var(--text-dim)" }}>
-          &gt; ENTRANTS &nbsp;
-          <span style={{ color: "var(--text-dim)" }}>
-            (press <span style={{ color: "#00c846" }}>A</span>/<span style={{ color: "#e8001c" }}>B</span>/<span style={{ color: "#8888ff" }}>X</span> to seed)
-          </span>
-        </div>
+        <div className="text-sm mb-1 text-[var(--text-dim)]">&gt; ENTRANTS</div>
 
         {names.map((name, i) => (
           <div key={i} className="flex gap-2 items-center">
-            <span className="text-sm w-5 text-right" style={{ color: "var(--text-dim)" }}>{i + 1}.</span>
+            <span className="text-sm w-5 text-right text-[var(--text-dim)]">{i + 1}.</span>
             <input
               className="flex-1 px-2 py-1.5 text-base"
               placeholder={`Player ${i + 1}`}
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
             />
-            <div className="flex gap-1">
-              {SEED_BUTTONS.map(({ seed, label, color, bg }) => (
-                <GCNButton key={seed} label={label} color={color} bg={bg}
-                  active={seeds[i] === seed}
-                  onClick={() => toggleSeed(i, seed)} />
-              ))}
-            </div>
+            <select
+              className="px-1 py-1.5 text-sm w-20"
+              value={seeds[i] ?? ""}
+              onChange={(e) => setSeed(i, e.target.value ? Number(e.target.value) : undefined)}
+            >
+              <option value="">seed</option>
+              <option value="1">1st</option>
+              <option value="2">2nd</option>
+              <option value="3">3rd</option>
+            </select>
             {names.length > 3 && (
-              <button onClick={() => removePlayer(i)} style={{ color: "var(--text-dim)", fontFamily: "inherit", fontSize: 14 }}>✕</button>
+              <button onClick={() => removePlayer(i)} className="text-sm text-[var(--text-dim)] font-mono">✕</button>
             )}
           </div>
         ))}
 
-        <button onClick={addPlayer} className="w-full py-1.5 text-sm mt-1"
-          style={{ border: "1px dashed var(--border)", color: "var(--text-dim)", background: "transparent", fontFamily: "inherit" }}>
+        <button onClick={addPlayer} className="w-full py-1.5 text-sm mt-1 font-mono border border-dashed border-[var(--border)] text-[var(--text-dim)] bg-transparent">
           + ADD ENTRANT
         </button>
 
-        <button onClick={start} className="w-full py-3 text-base font-bold tracking-widest mt-2"
+        <button onClick={start} className="w-full py-3 text-base font-bold tracking-widest mt-2 font-mono"
           style={{
-            border: "1px solid var(--purple-light)",
-            color: "#000", background: "var(--purple-light)",
-            fontFamily: "inherit", textShadow: "none",
-            boxShadow: "0 0 16px var(--purple), 0 0 32px var(--purple-dim)",
+            border: "1px solid #39ff14",
+            color: "#000", background: "#39ff14",
+            textShadow: "none",
+            boxShadow: "0 0 16px #39ff14, 0 0 32px #1a5a0a",
           }}>
           ▶ START TOURNAMENT
         </button>

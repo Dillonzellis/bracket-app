@@ -291,6 +291,45 @@ function autoAdvanceByes(state: BracketState) {
   }
 }
 
+export function countAffectedMatches(state: BracketState, matchId: string): number {
+  const visited = new Set<string>();
+  function walk(id: string) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    for (const other of Object.values(state.matches)) {
+      if (other.id === id) continue;
+      const dep = other.p1Source === id || other.p2Source === id ||
+        other.p1SourceLoser === id || other.p2SourceLoser === id;
+      if (dep) walk(other.id);
+    }
+  }
+  walk(matchId);
+  return visited.size - 1; // exclude the match itself
+}
+
+export function undoResult(state: BracketState, matchId: string): BracketState {
+  const next = JSON.parse(JSON.stringify(state)) as BracketState;
+
+  // Recursively clear a match and any downstream matches that depended on it
+  function clearMatch(id: string) {
+    const m = next.matches[id];
+    if (!m || (!m.winner && !m.loser)) return;
+    m.winner = null;
+    m.loser = null;
+    if (id === next.grandFinalsId) next.champion = null;
+    // Clear any match that sources its players from this match's winner or loser
+    for (const other of Object.values(next.matches)) {
+      if (other.id === id) continue;
+      const dependsOnWinner = other.p1Source === id || other.p2Source === id;
+      const dependsOnLoser = other.p1SourceLoser === id || other.p2SourceLoser === id;
+      if (dependsOnWinner || dependsOnLoser) clearMatch(other.id);
+    }
+  }
+
+  clearMatch(matchId);
+  return next;
+}
+
 export function reportResult(state: BracketState, matchId: string, winnerId: string): BracketState {
   const next = JSON.parse(JSON.stringify(state)) as BracketState;
   const match = next.matches[matchId];

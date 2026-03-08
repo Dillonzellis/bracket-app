@@ -12,15 +12,15 @@
   --gcn-gray: #8c8c8c;
   --bg: #080410;
   --bg-card: #0e0820;
-  --border: #2a1545;
-  --text: #e8d5ff;
-  --text-dim: #6b4a8a;
+  --border: #1a3a1a;
+  --text: #a8ff8a;
+  --text-dim: #3a6a2a;
   --scanline: rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
 
-html, body {
+body {
   background: var(--bg);
   color: var(--text);
   font-family: "Courier New", Courier, monospace;
@@ -54,7 +54,7 @@ body::after {
 }
 
 h1, .glow {
-  text-shadow: 0 0 10px var(--purple-light), 0 0 30px var(--purple-dim);
+  text-shadow: 0 0 10px #39ff14, 0 0 30px #1a5a0a;
 }
 
 input, select {
@@ -66,11 +66,11 @@ input, select {
 }
 input::placeholder { color: var(--text-dim); }
 input:focus, select:focus {
-  border-color: var(--purple-light);
-  box-shadow: 0 0 8px var(--purple-dim);
+  border-color: #39ff14;
+  box-shadow: 0 0 8px #1a5a0a;
 }
 select option { background: var(--bg); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--purple-dim); }
+::-webkit-scrollbar-thumb { background: var(--text-dim); }

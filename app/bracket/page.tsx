@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BracketState, Match, generateBracket, reportResult, resolvePlayer } from "@/lib/bracket";
+import { BracketState, Match, generateBracket, reportResult, undoResult, countAffectedMatches, resolvePlayer } from "@/lib/bracket";
+import { cn } from "@/lib/cn";
 
-const MATCH_W = 210;
-const MATCH_H = 68;
-const COL_GAP = 68;
-const SECTION_GAP = 60;
+const MATCH_W = 280;
+const MATCH_H = 100;
+const COL_GAP = 72;
+const SECTION_GAP = 64;
 
 function colX(ri: number) { return ri * (MATCH_W + COL_GAP); }
 function sectionH(n: number) { return Math.max(n, 1) * MATCH_H + Math.max(n - 1, 0) * 12; }
@@ -19,23 +20,9 @@ function midY(totalH: number, count: number, mi: number) {
   return cardY(totalH, count, mi) + MATCH_H / 2;
 }
 
-// GCN button for seed display
 function SeedBadge({ seed }: { seed: number }) {
-  const map: Record<number, { label: string; color: string }> = {
-    1: { label: "A", color: "#00c846" },
-    2: { label: "B", color: "#e8001c" },
-    3: { label: "X", color: "#8888ff" },
-  };
-  const btn = map[seed];
-  if (!btn) return null;
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      width: 17, height: 17, borderRadius: "50%",
-      background: btn.color, color: "#000",
-      fontSize: 10, fontWeight: "bold", marginRight: 5, flexShrink: 0,
-      boxShadow: `0 0 4px ${btn.color}`,
-    }}>{btn.label}</span>
+    <span className="text-xs text-[var(--text-dim)] mr-1.5 shrink-0">[{seed}]</span>
   );
 }
 
@@ -49,8 +36,25 @@ export default function BracketPage() {
     setState(generateBracket(JSON.parse(raw)));
   }, [router]);
 
+  const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
+
   const handleWin = (matchId: string, winnerId: string) =>
     setState((s) => (s ? reportResult(s, matchId, winnerId) : s));
+
+  const handleUndo = (matchId: string) => {
+    if (!state) return;
+    const match = state.matches[matchId];
+    const affected = countAffectedMatches(state, matchId);
+    const desc = `Reset ${match.winner!.name} def. ${match.loser?.name ?? "TBD"}` +
+      (affected > 0 ? ` — also clears ${affected} downstream match${affected > 1 ? "es" : ""}` : "");
+    setConfirmUndo({ matchId, description: desc });
+  };
+
+  const confirmAndUndo = () => {
+    if (!confirmUndo) return;
+    setState((s) => (s ? undoResult(s, confirmUndo.matchId) : s));
+    setConfirmUndo(null);
+  };
 
   if (!state) return null;
 
@@ -78,7 +82,7 @@ export default function BracketPage() {
     const cx = colX(ri);
     for (let mi = 0; mi < count; mi++)
       addPath(cx + MATCH_W, wOffsetY + midY(wH, count, mi), cx + MATCH_W + COL_GAP / 2,
-        wOffsetY + midY(wH, nextCount, Math.floor(mi / 2)), colX(ri + 1), "#2a1545");
+        wOffsetY + midY(wH, nextCount, Math.floor(mi / 2)), colX(ri + 1), "#1a3a1a");
   }
   for (let ri = 0; ri < lRounds.length - 1; ri++) {
     const count = lRounds[ri].length;
@@ -90,7 +94,7 @@ export default function BracketPage() {
   }
   if (wRounds.length > 0) {
     const cx = colX(wRounds.length - 1);
-    addPath(cx + MATCH_W, wOffsetY + midY(wH, 1, 0), cx + MATCH_W + COL_GAP / 2, gfY + MATCH_H / 4, gfColX, "#2a1545");
+    addPath(cx + MATCH_W, wOffsetY + midY(wH, 1, 0), cx + MATCH_W + COL_GAP / 2, gfY + MATCH_H / 4, gfColX, "#1a3a1a");
   }
   if (lRounds.length > 0) {
     const cx = colX(lRounds.length - 1);
@@ -98,18 +102,17 @@ export default function BracketPage() {
   }
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--bg)" }}>
+    <main className="min-h-screen bg-[var(--bg)]">
       {/* Header */}
-      <div className="flex items-center gap-4 px-5 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
-        <button onClick={() => router.push("/")}
-          className="text-sm tracking-widest"
-          style={{ color: "var(--text-dim)", fontFamily: "inherit" }}
-          onMouseEnter={e => (e.target as HTMLElement).style.color = "var(--purple-light)"}
-          onMouseLeave={e => (e.target as HTMLElement).style.color = "var(--text-dim)"}
-        >◀ MENU</button>
+      <div className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)]">
+        <button
+          onClick={() => router.push("/")}
+          className="text-lg tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors"
+        >
+          ◀ MENU
+        </button>
 
-        {/* Mini GCN controller icon */}
-        <svg width="32" height="16" viewBox="0 0 120 60" style={{ opacity: 0.5 }}>
+        <svg width="32" height="16" viewBox="0 0 120 60" className="opacity-50">
           <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="2"/>
           <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
           <ellipse cx="102" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
@@ -119,17 +122,15 @@ export default function BracketPage() {
           <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
         </svg>
 
-        <span className="text-base tracking-widest glow" style={{ color: "var(--purple-light)" }}>
+        <span className="text-xl tracking-widest glow text-[var(--text)]">
           SSBM TOURNAMENT — DOUBLE ELIM
         </span>
       </div>
 
       {state.champion && (
-        <div className="text-center py-2.5" style={{ borderBottom: "1px solid var(--border)", background: "#1a0a2e" }}>
-          <span className="text-sm tracking-widest font-bold" style={{
-            color: "#f0c000",
-            textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)",
-          }}>
+        <div className="text-center py-3 border-b border-[var(--border)] bg-[#1a0a2e]">
+          <span className="text-lg tracking-widest font-bold text-[#f0c000]"
+            style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}>
             ★ GRAND CHAMPION: {state.champion.name} ★
           </span>
         </div>
@@ -138,17 +139,16 @@ export default function BracketPage() {
       <div className="overflow-x-auto p-6 pt-5">
         <div className="relative" style={{ width: totalW, height: totalH + 36 }}>
 
-          {/* Section labels */}
-          <div className="absolute text-xs tracking-widest font-bold"
-            style={{ color: "#a855f7", top: wOffsetY, left: 0, transform: "translateY(-20px)", textShadow: "0 0 8px #a855f7" }}>
+          <div className="absolute text-lg tracking-widest font-bold text-[var(--text)] glow"
+            style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>
             ▸ WINNERS BRACKET
           </div>
-          <div className="absolute text-xs tracking-widest font-bold"
-            style={{ color: "#e8001c", top: lOffsetY, left: 0, transform: "translateY(-20px)", textShadow: "0 0 8px #e8001c" }}>
+          <div className="absolute text-base tracking-widest font-bold text-[#e8001c]"
+            style={{ top: lOffsetY, left: 0, transform: "translateY(-22px)", textShadow: "0 0 8px #e8001c" }}>
             ▸ LOSERS BRACKET
           </div>
-          <div className="absolute text-xs tracking-widest font-bold text-center"
-            style={{ color: "#f0c000", left: gfColX, top: gfY - 20, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>
+          <div className="absolute text-base tracking-widest font-bold text-center text-[#f0c000]"
+            style={{ left: gfColX, top: gfY - 24, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>
             ★ GRAND FINALS
           </div>
 
@@ -161,14 +161,14 @@ export default function BracketPage() {
             const cx = colX(ri);
             return (
               <div key={`w${ri}`}>
-                <div className="absolute text-xs text-center"
-                  style={{ left: cx, top: wOffsetY - 18, width: MATCH_W, color: "var(--text-dim)", fontSize: 13 }}>
+                <div className="absolute text-base text-center text-[var(--text-dim)]"
+                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>
                   R{ri + 1}
                 </div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + cardY(wH, count, mi) }}>
-                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin}
-                      winnerColor="#a855f7" borderColor="#3b1a5a" />
+                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} onUndo={handleUndo}
+                      winnerColor="#39ff14" borderColor="#1a3a1a" />
                   </div>
                 ))}
               </div>
@@ -180,13 +180,13 @@ export default function BracketPage() {
             const cx = colX(ri);
             return (
               <div key={`l${ri}`}>
-                <div className="absolute text-xs text-center"
-                  style={{ left: cx, top: lOffsetY - 18, width: MATCH_W, color: "var(--text-dim)", fontSize: 13 }}>
+                <div className="absolute text-base text-center text-[var(--text-dim)]"
+                  style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>
                   R{ri + 1}
                 </div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + cardY(lH, count, mi) }}>
-                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin}
+                    <MatchCard match={state.matches[id]} state={state} onWin={handleWin} onUndo={handleUndo}
                       winnerColor="#e8001c" borderColor="#3d0820" />
                   </div>
                 ))}
@@ -196,19 +196,39 @@ export default function BracketPage() {
 
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
-              <MatchCard match={gf} state={state} onWin={handleWin}
+              <MatchCard match={gf} state={state} onWin={handleWin} onUndo={handleUndo}
                 winnerColor="#f0c000" borderColor="#3d3000" />
             </div>
           )}
         </div>
       </div>
+
+      {confirmUndo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 max-w-sm w-full mx-4 font-mono">
+            <div className="text-base tracking-widest font-bold text-[var(--text)] mb-3">⚠ UNDO RESULT?</div>
+            <div className="text-sm text-[var(--text-dim)] mb-6">{confirmUndo.description}</div>
+            <div className="flex gap-3">
+              <button onClick={confirmAndUndo}
+                className="flex-1 py-2 text-sm tracking-widest font-bold text-black bg-[#e8001c] border border-[#e8001c] hover:opacity-80 transition-opacity">
+                UNDO
+              </button>
+              <button onClick={() => setConfirmUndo(null)}
+                className="flex-1 py-2 text-sm tracking-widest text-[var(--text-dim)] border border-[var(--border)] hover:text-[var(--text)] transition-colors">
+                CANCEL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-function MatchCard({ match, state, onWin, winnerColor, borderColor }: {
+function MatchCard({ match, state, onWin, onUndo, winnerColor, borderColor }: {
   match: Match; state: BracketState;
   onWin: (id: string, wid: string) => void;
+  onUndo: (id: string) => void;
   winnerColor: string; borderColor: string;
 }) {
   const p1 = resolvePlayer(state, match, "p1");
@@ -216,46 +236,55 @@ function MatchCard({ match, state, onWin, winnerColor, borderColor }: {
   const canPlay = !match.winner && !!p1 && !!p2;
 
   return (
-    <div style={{
-      width: MATCH_W, height: MATCH_H,
-      border: `1px solid ${match.winner ? winnerColor : borderColor}`,
-      background: "var(--bg-card)",
-      boxShadow: match.winner ? `0 0 10px ${winnerColor}33` : "none",
-      overflow: "hidden",
-    }}>
+    <div
+      className="relative overflow-hidden bg-[var(--bg-card)]"
+      style={{
+        width: MATCH_W, height: MATCH_H,
+        border: `1px solid ${match.winner ? winnerColor : borderColor}`,
+        boxShadow: match.winner ? `0 0 10px ${winnerColor}33` : "none",
+      }}
+    >
       {([p1, p2] as const).map((player, i) => {
         const isWinner = match.winner?.id === player?.id;
         const isLoser = match.loser?.id === player?.id;
         return (
-          <button key={i}
+          <button
+            key={i}
             disabled={!canPlay || !player}
             onClick={() => player && canPlay && onWin(match.id, player.id)}
+            className={cn(
+              "w-full flex items-center justify-between px-2 font-mono text-base tracking-wide transition-colors",
+              canPlay && player ? "cursor-pointer" : "cursor-default",
+              isLoser && "line-through"
+            )}
             style={{
-              height: MATCH_H / 2, width: "100%",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "0 8px",
-              fontFamily: "inherit", fontSize: "13px", letterSpacing: "0.04em",
-              cursor: canPlay && player ? "pointer" : "default",
+              height: MATCH_H / 2,
               borderBottom: i === 0 ? `1px solid ${borderColor}` : "none",
               background: isWinner ? `${winnerColor}20` : "transparent",
               color: isWinner ? winnerColor : isLoser ? "var(--text-dim)" : "var(--text)",
-              textDecoration: isLoser ? "line-through" : "none",
               textShadow: isWinner ? `0 0 6px ${winnerColor}` : "none",
-              transition: "background 0.1s",
             }}
             onMouseEnter={e => { if (canPlay && player) (e.currentTarget as HTMLElement).style.background = `${winnerColor}15`; }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isWinner ? `${winnerColor}20` : "transparent"; }}
           >
-            <span style={{ display: "flex", alignItems: "center", overflow: "hidden", maxWidth: 170 }}>
-              {player?.seed && <SeedBadge seed={player.seed} />}
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {player ? player.name : <span style={{ color: "var(--text-dim)", fontStyle: "italic" }}>-- TBD --</span>}
+            <span className="flex items-center overflow-hidden max-w-[180px]">
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                {player ? player.name : <span className="text-[var(--text-dim)] italic">-- TBD --</span>}
               </span>
+              {player?.seed && <SeedBadge seed={player.seed} />}
             </span>
-            {isWinner && <span style={{ color: winnerColor, fontSize: 11, flexShrink: 0 }}>WIN▶</span>}
+            {isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>}
           </button>
         );
       })}
+      {match.winner && (
+        <button
+          onClick={() => onUndo(match.id)}
+          className="absolute top-1 right-1 w-7 h-7 flex items-center justify-center text-sm font-mono text-[var(--text-dim)] hover:text-[var(--text)] hover:bg-white/10 transition-colors"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
