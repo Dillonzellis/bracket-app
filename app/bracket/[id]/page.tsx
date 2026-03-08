@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings } from "@/lib/bracket";
+import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, swapPlayers, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
 import MatchPanel from "./MatchPanel";
@@ -104,6 +104,9 @@ export default function BracketPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editMatchId, setEditMatchId] = useState<string | null>(null);
+  const [moveFrom, setMoveFrom] = useState<{ matchId: string; slot: "p1" | "p2" } | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
@@ -316,6 +319,15 @@ export default function BracketPage() {
             className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 py-1 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
             + LATE ENTRY
           </button>
+          <button onClick={() => { setEditMode(m => !m); setEditMatchId(null); setMoveFrom(null); }}
+            className={cn(
+              "text-xs tracking-widest font-mono transition-colors border px-2 py-1 shrink-0",
+              editMode
+                ? "border-[#f0c000] text-[#f0c000]"
+                : "border-[var(--border)] text-[var(--text)] hover:border-[#f0c000] hover:text-[#f0c000]"
+            )}>
+            ✎ EDIT
+          </button>
         </div>
       </div>
 
@@ -325,6 +337,12 @@ export default function BracketPage() {
             style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}>
             ★ CHAMPION: {state.champion.name} ★
           </span>
+        </div>
+      )}
+
+      {editMode && moveFrom && (
+        <div className="shrink-0 text-center py-1.5 bg-[#f0c00015] border-b border-[#f0c00040] text-xs font-mono text-[#f0c000]">
+          ✦ SELECT DESTINATION SLOT — <button className="underline" onClick={() => setMoveFrom(null)}>cancel</button>
         </div>
       )}
 
@@ -351,7 +369,15 @@ export default function BracketPage() {
                   style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>R{ri + 1}</div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + wYTable[ri][mi] }}>
-                    <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
+                    <MatchCard match={state.matches[id]} state={state}
+                      onOpen={editMode ? setEditMatchId : setActiveMatchId}
+                      editMode={editMode} moveFrom={moveFrom}
+                      onSlotClick={(slot) => {
+                        if (!editMode) return;
+                        if (!moveFrom) { setMoveFrom({ matchId: id, slot }); }
+                        else if (moveFrom.matchId === id && moveFrom.slot === slot) { setMoveFrom(null); }
+                        else { update(movePlayer(state, moveFrom.matchId, moveFrom.slot, id, slot)); setMoveFrom(null); }
+                      }}
                       winnerColor="#39ff14" borderColor="#2d6b2d" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                   </div>
                 ))}
@@ -373,7 +399,15 @@ export default function BracketPage() {
                       style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>{label}</div>
                     {round.map((id, mi) => (
                       <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + lYTable[roundIdx][mi] }}>
-                        <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
+                        <MatchCard match={state.matches[id]} state={state}
+                          onOpen={editMode ? setEditMatchId : setActiveMatchId}
+                          editMode={editMode} moveFrom={moveFrom}
+                          onSlotClick={(slot) => {
+                            if (!editMode) return;
+                            if (!moveFrom) { setMoveFrom({ matchId: id, slot }); }
+                            else if (moveFrom.matchId === id && moveFrom.slot === slot) { setMoveFrom(null); }
+                            else { update(movePlayer(state, moveFrom.matchId, moveFrom.slot, id, slot)); setMoveFrom(null); }
+                          }}
                           winnerColor="#e8001c" borderColor="#7a1020" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                       </div>
                     ))}
@@ -385,7 +419,15 @@ export default function BracketPage() {
 
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
-              <MatchCard match={gf} state={state} onOpen={setActiveMatchId}
+              <MatchCard match={gf} state={state}
+                onOpen={editMode ? setEditMatchId : setActiveMatchId}
+                editMode={editMode} moveFrom={moveFrom}
+                onSlotClick={(slot) => {
+                  if (!editMode) return;
+                  if (!moveFrom) { setMoveFrom({ matchId: gf.id, slot }); }
+                  else if (moveFrom.matchId === gf.id && moveFrom.slot === slot) { setMoveFrom(null); }
+                  else { update(movePlayer(state, moveFrom.matchId, moveFrom.slot, gf.id, slot)); setMoveFrom(null); }
+                }}
                 winnerColor="#f0c000" borderColor="#6b5500" highlight={highlightedMatchIds.has(gf.id)} ready={readyMatchIds.has(gf.id)} />
             </div>
           )}
@@ -405,6 +447,7 @@ export default function BracketPage() {
             onConfirm={handleWin}
             onUndo={handleUndo}
             onDQ={handleDQ}
+            onRename={(matchId, slot, name) => update(renamePlayerInMatch(state, matchId, slot, name))}
             onClose={() => setActiveMatchId(null)}
           />
         );
@@ -518,47 +561,118 @@ export default function BracketPage() {
           </div>
         </div>
       )}
+
+      {editMatchId && record && (() => {
+        const m = state.matches[editMatchId];
+        const p1 = m.p1Source && typeof m.p1Source === "object" ? m.p1Source : null;
+        const p2 = m.p2Source && typeof m.p2Source === "object" ? m.p2Source : null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70"
+            onClick={() => setEditMatchId(null)}>
+            <div className="bg-[var(--bg-card)] border border-[#f0c000] p-5 w-full max-w-sm mx-4 mb-4 sm:mb-0 font-mono"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm tracking-widest text-[#f0c000]">✎ RENAME PLAYERS</span>
+                <button onClick={() => setEditMatchId(null)} className="text-[var(--text-dim)] hover:text-[var(--text)]">✕</button>
+              </div>
+              <EditSlot label="P1" player={p1} onRename={name => {
+                update(renamePlayerInMatch(state, editMatchId, "p1", name));
+              }} />
+              <EditSlot label="P2" player={p2} onRename={name => {
+                update(renamePlayerInMatch(state, editMatchId, "p2", name));
+              }} />
+              <div className="mt-3 text-xs text-[var(--text-dim)] text-center">
+                To move players between matches, click slots directly on the bracket.
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }
 
-function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, ready }: {
+function EditSlot({ label, player, onRename }: {
+  label: string;
+  player: import("@/lib/bracket").Player | null;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(player?.name ?? "");
+  if (!player) return (
+    <div className="flex items-center gap-2 py-2 border-b border-[var(--border)] text-[var(--text-dim)] text-sm">
+      <span className="w-6 text-xs">{label}</span>
+      <span className="italic">TBD (from upstream match)</span>
+    </div>
+  );
+  return (
+    <div className="flex items-center gap-2 py-2 border-b border-[var(--border)]">
+      <span className="w-6 text-xs text-[var(--text-dim)]">{label}</span>
+      {editing ? (
+        <form className="flex gap-1 flex-1" onSubmit={e => { e.preventDefault(); onRename(val.trim() || player.name); setEditing(false); }}>
+          <input autoFocus className="flex-1 px-2 py-0.5 text-sm font-mono" value={val} onChange={e => setVal(e.target.value)}
+            onKeyDown={e => e.key === "Escape" && setEditing(false)} />
+          <button type="submit" className="text-xs px-2 border border-[var(--border)] text-[var(--text)] hover:border-[#39ff14]">OK</button>
+        </form>
+      ) : (
+        <>
+          <span className="flex-1 text-sm text-[var(--text)]">{player.name}</span>
+          <button onClick={() => { setVal(player.name); setEditing(true); }}
+            className="text-xs text-[var(--text-dim)] hover:text-[#f0c000] transition-colors">rename</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, ready, editMode, moveFrom, onSlotClick }: {
   match: Match; state: BracketState;
   onOpen: (id: string) => void;
   winnerColor: string; borderColor: string;
   highlight?: boolean;
   ready?: boolean;
+  editMode?: boolean;
+  moveFrom?: { matchId: string; slot: "p1" | "p2" } | null;
+  onSlotClick?: (slot: "p1" | "p2") => void;
 }) {
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
   const hasResult = !!match.winner;
   const p1Wins = match.games?.filter(g => g.winner === "p1").length ?? 0;
   const p2Wins = match.games?.filter(g => g.winner === "p2").length ?? 0;
+  const isMovingFrom = editMode && moveFrom?.matchId === match.id;
 
   return (
-    <div className={cn("relative overflow-hidden bg-(--bg-card) cursor-pointer", ready && !highlight && "ready-pulse")}
+    <div className={cn("relative overflow-hidden bg-(--bg-card) cursor-pointer", ready && !highlight && !editMode && "ready-pulse")}
       onClick={() => onOpen(match.id)}
       style={{
         width: MATCH_W, height: MATCH_H,
-        border: `1px solid ${highlight ? "#fff" : ready ? winnerColor : hasResult ? winnerColor : borderColor}`,
-        boxShadow: highlight ? "0 0 12px #ffffff88" : ready ? `0 0 8px ${winnerColor}55` : hasResult ? `0 0 10px ${winnerColor}33` : "none",
+        border: `1px solid ${highlight ? "#fff" : editMode ? "#f0c000" : ready ? winnerColor : hasResult ? winnerColor : borderColor}`,
+        boxShadow: highlight ? "0 0 12px #ffffff88" : editMode ? "0 0 8px #f0c00055" : ready ? `0 0 8px ${winnerColor}55` : hasResult ? `0 0 10px ${winnerColor}33` : "none",
       }}>
-      {([p1, p2] as const).map((player, i) => {
+      {(["p1", "p2"] as const).map((slot, i) => {
+        const player = slot === "p1" ? p1 : p2;
         const isWinner = match.winner?.id === player?.id;
         const isLoser = match.loser?.id === player?.id;
-        const gameScore = match.games ? (i === 0 ? p1Wins : p2Wins) : null;
+        const gameScore = match.games ? (slot === "p1" ? p1Wins : p2Wins) : null;
+        const isSelected = isMovingFrom && moveFrom?.slot === slot;
+        const isTarget = editMode && moveFrom && !(moveFrom.matchId === match.id && moveFrom.slot === slot);
         return (
-          <div key={i}
+          <div key={slot}
             className={cn(
               "w-full flex items-center justify-between px-2 font-mono text-base tracking-wide",
-              isLoser && "line-through"
+              isLoser && !editMode && "line-through",
+              editMode && "hover:bg-[#f0c00015]",
+              isSelected && "bg-[#f0c00030]",
             )}
+            onClick={editMode ? (e) => { e.stopPropagation(); onSlotClick?.(slot); } : undefined}
             style={{
               height: MATCH_H / 2,
-              borderBottom: i === 0 ? `1px solid ${borderColor}` : "none",
-              background: isWinner ? `${winnerColor}20` : "transparent",
-              color: isWinner ? winnerColor : isLoser ? "var(--text-dim)" : "var(--text)",
-              textShadow: isWinner ? `0 0 6px ${winnerColor}` : "none",
+              borderBottom: i === 0 ? `1px solid ${editMode ? "#f0c00040" : borderColor}` : "none",
+              background: isSelected ? "#f0c00030" : isWinner && !editMode ? `${winnerColor}20` : undefined,
+              color: isSelected ? "#f0c000" : isTarget ? "var(--text)" : isWinner && !editMode ? winnerColor : isLoser && !editMode ? "var(--text-dim)" : "var(--text)",
+              textShadow: isSelected ? "0 0 6px #f0c000" : isWinner && !editMode ? `0 0 6px ${winnerColor}` : "none",
+              cursor: editMode ? "pointer" : undefined,
             }}
           >
             <span className="flex items-center overflow-hidden max-w-50">
@@ -567,9 +681,11 @@ function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, 
               </span>
               {player?.seed && <SeedBadge seed={player.seed} />}
             </span>
-            {gameScore !== null
-              ? <span className="text-sm shrink-0" style={{ color: isWinner ? winnerColor : "var(--text-dim)" }}>{gameScore}</span>
-              : isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>
+            {editMode
+              ? <span className="text-xs shrink-0 text-[#f0c00080]">{isSelected ? "✦ MOVING" : "↕"}</span>
+              : gameScore !== null
+                ? <span className="text-sm shrink-0" style={{ color: isWinner ? winnerColor : "var(--text-dim)" }}>{gameScore}</span>
+                : isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>
             }
           </div>
         );

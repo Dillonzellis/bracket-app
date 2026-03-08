@@ -243,10 +243,9 @@ export function generateBracket(players: Player[]): BracketState {
       }
     }
   } else {
-    // No prelims (power-of-2 player count) — standard alternating drop/consolidate
-    // Skip the last winners round (winners final) — its loser is 2nd place, not a L bracket entrant,
-    // unless it's the only W round (n=2 degenerate case).
-    const wLimit = winnersRounds.length > 1 ? winnersRounds.length - 1 : winnersRounds.length;
+    // No prelims (power-of-2 player count) — standard alternating drop/consolidate.
+    // Process all W rounds including the winners final — its loser drops into the last L round.
+    const wLimit = winnersRounds.length;
     for (let wi = 0; wi < wLimit; wi++) {
       const wRound = winnersRounds[wi];
       const dropRound: string[] = [];
@@ -283,14 +282,13 @@ export function generateBracket(players: Player[]): BracketState {
         }
         losersRounds.push(conRound);
         prevLR = conRound;
-      } else if (con.length === 1) {
-        // Single bypass loser with no L survivors — create a bye-holder round so GF has a valid L source
+      } else if (con.length === 1 && bypassWLosers.includes(con[0])) {
+        // Single bypass loser with no L survivors — wrap in a bye-holder so GF has a valid L source
         const src = con[0];
-        const isBye = bypassWLosers.includes(src);
         const id = mid("l", losersRounds.length + 1, 0);
         matches[id] = {
           id, round: losersRounds.length + 1, matchIndex: 0,
-          p1Source: isBye ? null : src, p1SourceLoser: isBye ? src : undefined,
+          p1Source: null, p1SourceLoser: src,
           p2Source: null,
           winner: null, loser: null, bracket: "losers",
         };
@@ -515,6 +513,55 @@ export function disqualifyPlayer(state: BracketState, playerId: string): Bracket
     return next;
   }
   return state;
+}
+
+export function movePlayer(
+  state: BracketState,
+  fromMatchId: string, fromSlot: "p1" | "p2",
+  toMatchId: string, toSlot: "p1" | "p2"
+): BracketState {
+  // Only works when the source slot has a fixed Player (not a match-winner reference)
+  let next = JSON.parse(JSON.stringify(state)) as BracketState;
+  const from = next.matches[fromMatchId];
+  const to = next.matches[toMatchId];
+  if (!from || !to) return state;
+  const fromSrc = fromSlot === "p1" ? from.p1Source : from.p2Source;
+  if (!fromSrc || typeof fromSrc !== "object") return state;
+  const toSrc = toSlot === "p1" ? to.p1Source : to.p2Source;
+  // Clear results on both affected matches before mutating
+  next = undoResult(next, fromMatchId);
+  next = undoResult(next, toMatchId);
+  const f = next.matches[fromMatchId];
+  const t = next.matches[toMatchId];
+  // Swap: put fromSrc into destination, put toSrc (or null) back into source
+  if (toSlot === "p1") t.p1Source = fromSrc; else t.p2Source = fromSrc;
+  if (fromSlot === "p1") f.p1Source = (toSrc && typeof toSrc === "object") ? toSrc : null;
+  else f.p2Source = (toSrc && typeof toSrc === "object") ? toSrc : null;
+  return next;
+}
+
+export function swapPlayers(state: BracketState, matchId: string): BracketState {
+  const next = undoResult(JSON.parse(JSON.stringify(state)) as BracketState, matchId);
+  const m = next.matches[matchId];
+  if (!m) return state;
+  [m.p1Source, m.p2Source] = [m.p2Source, m.p1Source];
+  [m.p1SourceLoser, m.p2SourceLoser] = [m.p2SourceLoser, m.p1SourceLoser];
+  return next;
+}
+
+export function renamePlayerInMatch(state: BracketState, matchId: string, slot: "p1" | "p2", name: string): BracketState {
+  const next = JSON.parse(JSON.stringify(state)) as BracketState;
+  const m = next.matches[matchId];
+  if (!m) return state;
+  const src = slot === "p1" ? m.p1Source : m.p2Source;
+  if (!src || typeof src !== "object") return state;
+  const updated = { ...src, name };
+  if (slot === "p1") m.p1Source = updated;
+  else m.p2Source = updated;
+  // Update in players list too
+  const pi = next.players.findIndex(p => p.id === src.id);
+  if (pi >= 0) next.players[pi] = updated;
+  return next;
 }
 
 export function reportResult(state: BracketState, matchId: string, winnerId: string): BracketState {
