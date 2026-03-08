@@ -40,68 +40,76 @@ function mid(b: string, r: number, i: number) {
   return `${b}-r${r}-m${i}`;
 }
 
+function buildOrder(n: number): number[] {
+  if (n === 2) return [1, 2];
+  const prev = buildOrder(n / 2);
+  const result: number[] = [];
+  prev.forEach((s, i) => {
+    const comp = n + 1 - s;
+    if (i % 2 === 0) result.push(s, comp);
+    else result.push(comp, s);
+  });
+  return result;
+}
+
 function seededOrder(players: Player[]): Player[] {
   const size = nextPowerOf2(players.length);
-  // Fill slots with seeded players first, then unseeded
-  const slots: (Player | null)[] = Array(size).fill(null);
-  const seeded = players.filter((p) => p.seed && p.seed <= 3).sort((a, b) => a.seed! - b.seed!);
-  const unseeded = players.filter((p) => !p.seed || p.seed > 3);
-  const seedSlots: Record<number, number> = { 1: 0, 2: size - 1, 3: size / 2 };
-  for (const p of seeded) {
-    if (seedSlots[p.seed!] !== undefined) slots[seedSlots[p.seed!]] = p;
-  }
+  const order = buildOrder(size);
+
+  const bySeed: Record<number, Player> = {};
+  for (const p of players) if (p.seed) bySeed[p.seed] = p;
+  const unseeded = players.filter(p => !p.seed);
   let ui = 0;
+
+  const result: Player[] = [];
   for (let i = 0; i < size; i++) {
-    if (!slots[i]) slots[i] = unseeded[ui++] ?? null;
+    const s = order[i];
+    if (s <= players.length) {
+      result.push(bySeed[s] ?? unseeded[ui++]);
+    }
   }
-  // Return only actual players in their seeded order, nulls removed
-  return slots.filter(Boolean) as Player[];
+  return result;
 }
 
 export function generateBracket(players: Player[]): BracketState {
-  // How many players need a prelim match vs get a bye into main round
-  // e.g. 12 players: nextPow2=16, byes=4, prelim players=12-4=8 (4 prelim matches)
   const size = nextPowerOf2(players.length);
-  const byeCount = size - players.length;
-  const ordered = seededOrder(players);
+  const ordered = seededOrder(players); // players in slot order, phantoms omitted
+  const fullOrder = buildOrder(size);   // seed numbers for all size slots
   const matches: Record<string, Match> = {};
   const winnersRounds: string[][] = [];
 
-  // Top `byeCount` seeds get byes (sit out prelim), rest play prelim
-  const byePlayers = ordered.slice(0, byeCount);       // these go straight to main R1
-  const prelimPlayers = ordered.slice(byeCount);        // these play prelim
-
-  // --- Prelim round (round 0 visually, but we call it W-R1) ---
-  // prelimPlayers are paired: [0,1], [2,3], ...
-  const prelimRound: string[] = [];
-  for (let i = 0; i < prelimPlayers.length / 2; i++) {
-    const id = mid("w", 1, i);
-    matches[id] = {
-      id, round: 1, matchIndex: i,
-      p1Source: prelimPlayers[i * 2],
-      p2Source: prelimPlayers[i * 2 + 1],
-      winner: null, loser: null,
-      bracket: "winners",
-    };
-    prelimRound.push(id);
+  // Build a slot array: for each of the `size` slots, either a Player or null (phantom).
+  // `ordered` lists real players in slot order (phantoms already skipped), so we can
+  // reconstruct by walking fullOrder and assigning from ordered sequentially.
+  const slots: (Player | null)[] = [];
+  let oi = 0;
+  for (let i = 0; i < size; i++) {
+    slots[i] = fullOrder[i] <= players.length ? ordered[oi++] : null;
   }
-  if (prelimRound.length > 0) winnersRounds.push(prelimRound);
 
-  // --- Main round 1: byePlayers + prelim winners, paired ---
-  // Slot layout: interleave bye players and prelim match winners so seeding holds
-  // bye slots: indices 0..byeCount-1, prelim winners fill the rest
-  const mainR1Sources: (Player | string)[] = [];
-  let byeIdx = 0;
+  // --- Winners prelim round ---
+  // Real-vs-real slot pairs become prelim matches.
+  // Real-vs-phantom pairs: the real player gets a bye into W-R1.
+  const prelimRound: string[] = [];
+  const mainR1Sources: (Player | string)[] = []; // one per W-R1 match
   let prelimIdx = 0;
   for (let i = 0; i < size / 2; i++) {
-    // Alternate: bye player, prelim winner, bye player, prelim winner...
-    if (byeIdx < byePlayers.length && (prelimIdx >= prelimRound.length || byeIdx <= prelimIdx)) {
-      mainR1Sources.push(byePlayers[byeIdx++]);
+    const p1 = slots[i * 2], p2 = slots[i * 2 + 1];
+    if (p1 && p2) {
+      // Both real — prelim match
+      const id = mid("w", 1, prelimIdx++);
+      matches[id] = { id, round: 1, matchIndex: prelimIdx - 1, p1Source: p1, p2Source: p2, winner: null, loser: null, bracket: "winners" };
+      prelimRound.push(id);
+      mainR1Sources.push(id); // winner feeds W-R1
     } else {
-      mainR1Sources.push(prelimRound[prelimIdx++]);
+      // One phantom — real player gets bye directly into W-R1
+      mainR1Sources.push((p1 ?? p2)!);
     }
   }
+  if (prelimRound.length > 0) winnersRounds.push(prelimRound);
+  const numPrelim = prelimRound.length;
 
+  // --- Winners main R1 ---
   const mainR1: string[] = [];
   for (let i = 0; i < mainR1Sources.length / 2; i++) {
     const id = mid("w", winnersRounds.length + 1, i);
@@ -109,14 +117,12 @@ export function generateBracket(players: Player[]): BracketState {
       id, round: winnersRounds.length + 1, matchIndex: i,
       p1Source: mainR1Sources[i * 2],
       p2Source: mainR1Sources[i * 2 + 1],
-      winner: null, loser: null,
-      bracket: "winners",
+      winner: null, loser: null, bracket: "winners",
     };
     mainR1.push(id);
   }
   winnersRounds.push(mainR1);
 
-  // --- Remaining winners rounds ---
   let prevWR = mainR1;
   while (prevWR.length > 1) {
     const round: string[] = [];
@@ -124,10 +130,8 @@ export function generateBracket(players: Player[]): BracketState {
       const id = mid("w", winnersRounds.length + 1, i);
       matches[id] = {
         id, round: winnersRounds.length + 1, matchIndex: i,
-        p1Source: prevWR[i * 2],
-        p2Source: prevWR[i * 2 + 1],
-        winner: null, loser: null,
-        bracket: "winners",
+        p1Source: prevWR[i * 2], p2Source: prevWR[i * 2 + 1],
+        winner: null, loser: null, bracket: "winners",
       };
       round.push(id);
     }
@@ -136,98 +140,155 @@ export function generateBracket(players: Player[]): BracketState {
   }
 
   // --- Losers bracket ---
-  // Prelim losers feed L1 (paired), then alternate drop-in + consolidation
-  const losersRounds: string[][] = [];
+  // Standard DE structure: each W round's losers drop into L, then survivors consolidate.
+  //
+  // L-R1 (drop): pair each prelim loser 1:1 with a W-R2 loser.
+  //   - numPrelim prelim losers, size/2 W-R2 losers.
+  //   - First numPrelim W-R2 losers each face a prelim loser.
+  //   - Remaining (size/2 - numPrelim) W-R2 losers get a bye into L-R2.
+  // L-R2 (consolidation): L-R1 winners pair up; bye W-R2 losers slot in.
+  // Then for each subsequent W round: drop round (L survivors vs W losers), then consolidation.
 
-  // L1: prelim losers paired up
+  const losersRounds: string[][] = [];
   let prevLR: string[] = [];
-  if (prelimRound.length > 0) {
+
+  const mainR1Round = winnersRounds[numPrelim > 0 ? 1 : 0];
+  // hasPrelimRound is true only when there's a separate prelim round AND a main R1
+  // (i.e. not all W-R1 matches are prelims, which happens for power-of-2 counts)
+  const hasPrelimRound = numPrelim > 0 && winnersRounds.length > 1 && winnersRounds[0].length < mainR1Round.length;
+
+  if (hasPrelimRound) {
+    // L-R1: pair each prelim loser 1:1 with the W-mainR1 loser from the same slot.
+    // If numPrelim > mainR1Round.length (e.g. n=8 where all W-R1 are prelims),
+    // extra prelim losers have no W-R1 opponent and bypass into L-R2 consolidation.
+    const numL1 = Math.min(numPrelim, mainR1Round.length);
+    const byePrelimLosers = prelimRound.slice(numL1); // prelim losers with no W-R1 opponent
     const l1: string[] = [];
-    for (let i = 0; i < Math.ceil(prelimRound.length / 2); i++) {
+    for (let i = 0; i < numL1; i++) {
       const id = mid("l", 1, i);
       matches[id] = {
         id, round: 1, matchIndex: i,
         p1Source: null, p2Source: null,
-        p1SourceLoser: prelimRound[i * 2],
-        p2SourceLoser: prelimRound[i * 2 + 1] ?? undefined,
-        winner: null, loser: null,
-        bracket: "losers",
+        p1SourceLoser: prelimRound[i],
+        p2SourceLoser: mainR1Round[i],
+        winner: null, loser: null, bracket: "losers",
       };
       l1.push(id);
     }
-    losersRounds.push(l1);
-    prevLR = l1;
-  }
+    if (l1.length > 0) { losersRounds.push(l1); prevLR = l1; }
 
-  // For each subsequent winners round (main R1 onwards), drop losers in then consolidate
-  for (let wi = 1; wi < winnersRounds.length; wi++) {
-    const wRound = winnersRounds[wi];
+    // W-mainR1 losers with no prelim opponent bypass L-R1
+    const byeWLosers = mainR1Round.slice(numL1);
+    // All bypass sources (both prelim losers and W losers that skipped L-R1)
+    const allByeSources = [...byePrelimLosers, ...byeWLosers];
 
-    // Pair each W loser with a prevLR survivor.
-    // If prevLR is shorter, the extra W losers have no opponent — carry them as free slots
-    // directly into the next consolidation rather than creating phantom bye matches.
-    const dropRound: string[] = [];
-    const bypassSources: string[] = []; // W loser matchIds with no L opponent
-
-    for (let i = 0; i < wRound.length; i++) {
-      if (i < prevLR.length) {
-        // Real match: L survivor vs W loser
+    // L-R2 consolidation: L-R1 winners + all bypass sources
+    const conSourcesFinal: string[] = [...prevLR, ...allByeSources];
+    if (conSourcesFinal.length > 1) {
+      const l2: string[] = [];
+      for (let i = 0; i < Math.ceil(conSourcesFinal.length / 2); i++) {
+        const src1 = conSourcesFinal[i * 2];
+        const src2 = conSourcesFinal[i * 2 + 1] ?? null;
         const id = mid("l", losersRounds.length + 1, i);
+        const src1IsBye = allByeSources.includes(src1);
+        const src2IsBye = src2 ? allByeSources.includes(src2) : false;
         matches[id] = {
           id, round: losersRounds.length + 1, matchIndex: i,
-          p1Source: prevLR[i],
-          p2Source: null,
-          p2SourceLoser: wRound[i],
-          winner: null, loser: null,
-          bracket: "losers",
+          p1Source: src1IsBye ? null : src1,
+          p1SourceLoser: src1IsBye ? src1 : undefined,
+          p2Source: src2IsBye ? null : (src2 ?? null),
+          p2SourceLoser: src2IsBye ? src2! : undefined,
+          winner: null, loser: null, bracket: "losers",
         };
-        dropRound.push(id);
-      } else {
-        // No L survivor — W loser bypasses this round
-        bypassSources.push(wRound[i]);
+        l2.push(id);
       }
+      losersRounds.push(l2);
+      prevLR = l2;
     }
 
-    if (dropRound.length > 0) {
-      losersRounds.push(dropRound);
-      prevLR = dropRound;
-    }
-
-    // Consolidation: pair up prevLR winners, also absorbing any bypass W losers
-    const conSources: string[] = [...prevLR, ...bypassSources];
-    if (conSources.length > 1) {
-      const conRound: string[] = [];
-      for (let i = 0; i < Math.ceil(conSources.length / 2); i++) {
-        const id = mid("l", losersRounds.length + 1, i);
-        const src1 = conSources[i * 2];
-        const src2 = conSources[i * 2 + 1] ?? null;
-        const src1IsWLoser = bypassSources.includes(src1);
-        const src2IsWLoser = src2 ? bypassSources.includes(src2) : false;
-        matches[id] = {
-          id, round: losersRounds.length + 1, matchIndex: i,
-          p1Source: src1IsWLoser ? null : src1,
-          p1SourceLoser: src1IsWLoser ? src1 : undefined,
-          p2Source: src2IsWLoser ? null : src2,
-          p2SourceLoser: src2IsWLoser ? src2! : undefined,
-          winner: null, loser: null,
-          bracket: "losers",
-        };
-        conRound.push(id);
+    // Continue with W rounds after mainR1 (wi=2 onwards in winnersRounds)
+    for (let wi = 2; wi < winnersRounds.length; wi++) {
+      const wRound = winnersRounds[wi];
+      // Drop round: each L survivor vs a W loser
+      const dropRound: string[] = [];
+      const bypassWLosers: string[] = [];
+      for (let i = 0; i < wRound.length; i++) {
+        if (i < prevLR.length) {
+          const id = mid("l", losersRounds.length + 1, i);
+          matches[id] = {
+            id, round: losersRounds.length + 1, matchIndex: i,
+            p1Source: prevLR[i],
+            p2Source: null,
+            p2SourceLoser: wRound[i],
+            winner: null, loser: null, bracket: "losers",
+          };
+          dropRound.push(id);
+        } else {
+          bypassWLosers.push(wRound[i]);
+        }
       }
-      losersRounds.push(conRound);
-      prevLR = conRound;
-    } else if (conSources.length === 1 && bypassSources.length === 1 && dropRound.length === 0) {
-      // Only one W loser, no L survivors at all — create a single bye match
-      const id = mid("l", losersRounds.length + 1, 0);
-      matches[id] = {
-        id, round: losersRounds.length + 1, matchIndex: 0,
-        p1Source: null, p2Source: null,
-        p1SourceLoser: bypassSources[0],
-        winner: null, loser: null,
-        bracket: "losers",
-      };
-      losersRounds.push([id]);
-      prevLR = [id];
+      if (dropRound.length > 0) { losersRounds.push(dropRound); prevLR = dropRound; }
+
+      // Consolidation
+      const con: string[] = [...prevLR, ...bypassWLosers];
+      if (con.length > 1) {
+        const conRound: string[] = [];
+        for (let i = 0; i < Math.ceil(con.length / 2); i++) {
+          const src1 = con[i * 2], src2 = con[i * 2 + 1] ?? null;
+          const id = mid("l", losersRounds.length + 1, i);
+          const s1bye = bypassWLosers.includes(src1);
+          const s2bye = src2 ? bypassWLosers.includes(src2) : false;
+          matches[id] = {
+            id, round: losersRounds.length + 1, matchIndex: i,
+            p1Source: s1bye ? null : src1, p1SourceLoser: s1bye ? src1 : undefined,
+            p2Source: s2bye ? null : src2, p2SourceLoser: s2bye ? src2! : undefined,
+            winner: null, loser: null, bracket: "losers",
+          };
+          conRound.push(id);
+        }
+        losersRounds.push(conRound);
+        prevLR = conRound;
+      }
+    }
+  } else {
+    // No prelims (power-of-2 player count) — standard alternating drop/consolidate
+    for (let wi = 0; wi < winnersRounds.length; wi++) {
+      const wRound = winnersRounds[wi];
+      const dropRound: string[] = [];
+      const bypassWLosers: string[] = [];
+      for (let i = 0; i < wRound.length; i++) {
+        if (i < prevLR.length) {
+          const id = mid("l", losersRounds.length + 1, i);
+          matches[id] = {
+            id, round: losersRounds.length + 1, matchIndex: i,
+            p1Source: prevLR[i], p2Source: null, p2SourceLoser: wRound[i],
+            winner: null, loser: null, bracket: "losers",
+          };
+          dropRound.push(id);
+        } else {
+          bypassWLosers.push(wRound[i]);
+        }
+      }
+      if (dropRound.length > 0) { losersRounds.push(dropRound); prevLR = dropRound; }
+      const con: string[] = [...prevLR, ...bypassWLosers];
+      if (con.length > 1) {
+        const conRound: string[] = [];
+        for (let i = 0; i < Math.ceil(con.length / 2); i++) {
+          const src1 = con[i * 2], src2 = con[i * 2 + 1] ?? null;
+          const id = mid("l", losersRounds.length + 1, i);
+          const s1bye = bypassWLosers.includes(src1);
+          const s2bye = src2 ? bypassWLosers.includes(src2) : false;
+          matches[id] = {
+            id, round: losersRounds.length + 1, matchIndex: i,
+            p1Source: s1bye ? null : src1, p1SourceLoser: s1bye ? src1 : undefined,
+            p2Source: s2bye ? null : src2, p2SourceLoser: s2bye ? src2! : undefined,
+            winner: null, loser: null, bracket: "losers",
+          };
+          conRound.push(id);
+        }
+        losersRounds.push(conRound);
+        prevLR = conRound;
+      }
     }
   }
 
@@ -239,8 +300,7 @@ export function generateBracket(players: Player[]): BracketState {
     id: gfId, round: 0, matchIndex: 0,
     p1Source: lastWR[0],
     p2Source: lastLR?.[0] ?? null,
-    winner: null, loser: null,
-    bracket: "grand-finals",
+    winner: null, loser: null, bracket: "grand-finals",
   };
 
   const state = { players, matches, winnersRounds, losersRounds, grandFinalsId: gfId, champion: null };

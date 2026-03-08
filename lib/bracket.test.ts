@@ -637,3 +637,93 @@ describe("disqualifyPlayer", () => {
     }
   });
 });
+
+describe("seeding order", () => {
+  // Helper: get the ordered list of seeds from the first winners round of a fully-seeded bracket
+  function getR1SeedPairs(playerCount: number): [number, number][] {
+    const players = Array.from({ length: playerCount }, (_, i) => ({
+      id: `p${i}`, name: `P${i + 1}`, seed: i + 1,
+    }));
+    const state = generateBracket(players);
+    // First winners round (may be prelim for non-power-of-2)
+    const firstRound = state.winnersRounds[0];
+    return firstRound.map(id => {
+      const m = state.matches[id];
+      const p1 = resolvePlayer(state, m, "p1") as Player;
+      const p2 = resolvePlayer(state, m, "p2") as Player;
+      return [p1.seed!, p2.seed!] as [number, number];
+    });
+  }
+
+  test("8 players: correct matchups 1v8, 5v4, 3v6, 7v2", () => {
+    const pairs = getR1SeedPairs(8);
+    expect(pairs).toEqual([[1,8],[5,4],[3,6],[7,2]]);
+  });
+
+  test("4 players: correct matchups 1v4, 3v2", () => {
+    const pairs = getR1SeedPairs(4);
+    expect(pairs).toEqual([[1,4],[3,2]]);
+  });
+
+  test("16 players: correct matchups", () => {
+    const pairs = getR1SeedPairs(16);
+    expect(pairs).toEqual([[1,16],[9,8],[5,12],[13,4],[3,14],[11,6],[7,10],[15,2]]);
+  });
+
+  test.each([4, 8, 16, 32])("%i players: every R1 pair sums to size+1", (n) => {
+    const pairs = getR1SeedPairs(n);
+    pairs.forEach(([a, b]) => expect(a + b).toBe(n + 1));
+  });
+
+  test.each([4, 8, 16, 32])("%i players: seed 1 and seed 2 are in opposite halves", (n) => {
+    const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i+1}`, seed: i+1 }));
+    const state = generateBracket(players);
+    const firstRound = state.winnersRounds[0];
+    const half = firstRound.length / 2;
+    const seed1Match = firstRound.findIndex(id => {
+      const m = state.matches[id];
+      return resolvePlayer(state, m, "p1")?.seed === 1 || resolvePlayer(state, m, "p2")?.seed === 1;
+    });
+    const seed2Match = firstRound.findIndex(id => {
+      const m = state.matches[id];
+      return resolvePlayer(state, m, "p1")?.seed === 2 || resolvePlayer(state, m, "p2")?.seed === 2;
+    });
+    expect(seed1Match < half).toBe(true);
+    expect(seed2Match >= half).toBe(true);
+  });
+
+  test.each([8, 16, 32])("%i players: seed 1 and seed 3 are in opposite quarters", (n) => {
+    const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i+1}`, seed: i+1 }));
+    const state = generateBracket(players);
+    const firstRound = state.winnersRounds[0];
+    const quarter = firstRound.length / 4;
+    const matchIdx = (seed: number) => firstRound.findIndex(id => {
+      const m = state.matches[id];
+      return resolvePlayer(state, m, "p1")?.seed === seed || resolvePlayer(state, m, "p2")?.seed === seed;
+    });
+    const q1 = Math.floor(matchIdx(1) / quarter);
+    const q3 = Math.floor(matchIdx(3) / quarter);
+    expect(q1).not.toBe(q3);
+  });
+
+  test.each([4, 8, 16, 32])("%i players: all players appear exactly once in R1", (n) => {
+    const players = Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `P${i+1}`, seed: i+1 }));
+    const state = generateBracket(players);
+    const firstRound = state.winnersRounds[0];
+    const seeds = firstRound.flatMap(id => {
+      const m = state.matches[id];
+      return [resolvePlayer(state, m, "p1")?.seed, resolvePlayer(state, m, "p2")?.seed];
+    }).filter(Boolean) as number[];
+    expect(seeds.sort((a,b) => a-b)).toEqual(Array.from({ length: n }, (_, i) => i + 1));
+  });
+
+  test("non-power-of-2 (6 players): top seeds get byes, all players present", () => {
+    const players = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, name: `P${i+1}`, seed: i+1 }));
+    const state = generateBracket(players);
+    const allSeeds = Object.values(state.matches)
+      .flatMap(m => [m.p1Source, m.p2Source])
+      .filter(s => s && typeof s === "object")
+      .map(s => (s as Player).seed);
+    for (let i = 1; i <= 6; i++) expect(allSeeds).toContain(i);
+  });
+});

@@ -15,7 +15,7 @@ export default function Home() {
   const router = useRouter();
   const [tournaments, setTournaments] = useState<TournamentRecord[]>([]);
   const [names, setNames] = useState<string[]>(["", "", "", ""]);
-  const [seeds, setSeeds] = useState<Record<number, number>>({});
+  const [seeds, setSeeds] = useState<Record<number, number>>({ 0: 1, 1: 2, 2: 3, 3: 4 });
   const [tournamentName, setTournamentName] = useState("");
   const [defaultFormat, setDefaultFormat] = useState<3 | 5>(3);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -24,19 +24,32 @@ export default function Home() {
     setTimeout(() => setTournaments(getTournaments()), 0);
   }, []);
 
-  const addPlayer = () => setNames((n) => [...n, ""]);
-  const removePlayer = (i: number) =>
+  const addPlayer = () => {
+    setNames((n) => {
+      const next = [...n, ""];
+      setSeeds(s => ({ ...s, [next.length - 1]: next.length }));
+      return next;
+    });
+  };
+  const removePlayer = (i: number) => {
     setNames((n) => n.filter((_, idx) => idx !== i));
+    setSeeds((s) => {
+      const next: Record<number, number> = {};
+      Object.entries(s).forEach(([k, v]) => {
+        const ki = +k;
+        if (ki < i) next[ki] = v;
+        else if (ki > i) next[ki - 1] = v;
+      });
+      return next;
+    });
+  };
   const updateName = (i: number, val: string) =>
     setNames((n) => n.map((v, idx) => (idx === i ? val : v)));
 
   const setSeed = (playerIdx: number, seed: number | undefined) => {
     setSeeds((s) => {
       const next = { ...s };
-      if (seed)
-        Object.keys(next).forEach((k) => {
-          if (next[+k] === seed) delete next[+k];
-        });
+      if (seed) Object.keys(next).forEach((k) => { if (next[+k] === seed) delete next[+k]; });
       if (seed) next[playerIdx] = seed;
       else delete next[playerIdx];
       return next;
@@ -45,7 +58,7 @@ export default function Home() {
 
   const loadStub = (count: number) => {
     setNames(Array.from({ length: count }, (_, i) => `P${i + 1}`));
-    setSeeds({ 0: 1, 1: 2, 2: 3 });
+    setSeeds(Object.fromEntries(Array.from({ length: count }, (_, i) => [i, i + 1])));
   };
 
   const start = () => {
@@ -278,18 +291,17 @@ export default function Home() {
               value={name}
               onChange={(e) => updateName(i, e.target.value)}
             />
-            <select
-              className="px-1 py-1.5 text-sm w-20"
+            <input
+              type="number"
+              min={1}
+              max={names.length}
+              className="px-1 py-1.5 text-sm w-14 text-center"
               value={seeds[i] ?? ""}
+              placeholder="#"
               onChange={(e) =>
                 setSeed(i, e.target.value ? Number(e.target.value) : undefined)
               }
-            >
-              <option value="">seed</option>
-              <option value="1">1st</option>
-              <option value="2">2nd</option>
-              <option value="3">3rd</option>
-            </select>
+            />
             {names.length > 3 && (
               <button
                 onClick={() => removePlayer(i)}
