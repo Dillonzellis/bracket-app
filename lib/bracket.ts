@@ -291,6 +291,67 @@ function autoAdvanceByes(state: BracketState) {
   }
 }
 
+export function addPlayerToLosers(state: BracketState, player: Player): BracketState {
+  const next = JSON.parse(JSON.stringify(state)) as BracketState;
+  const newPlayer = { ...player, id: `late-${Date.now()}` };
+  next.players = [...next.players, newPlayer];
+
+  // Find earliest unplayed losers match with a null fixed source (no loser feeding it yet)
+  for (const roundIds of next.losersRounds) {
+    for (const id of roundIds) {
+      const m = next.matches[id];
+      if (m.winner) continue;
+      if (m.p1Source === null && !m.p1SourceLoser) { m.p1Source = newPlayer; return next; }
+      if (m.p2Source === null && !m.p2SourceLoser) { m.p2Source = newPlayer; return next; }
+    }
+  }
+
+  // No open slot — create a new losers R1 match pairing the late entrant against the
+  // loser of the earliest unplayed winners R1 match
+  const firstWR1 = next.winnersRounds[0];
+  const wMatchId = firstWR1?.find(id => !next.matches[id].winner);
+  const newMatchId = `l-late-${Date.now()}`;
+  next.matches[newMatchId] = {
+    id: newMatchId, round: 0, matchIndex: 0,
+    p1Source: newPlayer,
+    p2Source: null,
+    p2SourceLoser: wMatchId,
+    winner: null, loser: null,
+    bracket: "losers",
+  };
+  next.losersRounds = [[newMatchId], ...next.losersRounds];
+  return next;
+}
+
+export function findByeSlots(state: BracketState): { matchId: string; slot: "p1" | "p2" }[] {
+  const results: { matchId: string; slot: "p1" | "p2" }[] = [];
+  for (const match of Object.values(state.matches)) {
+    if (match.winner) continue;
+    for (const slot of ["p1", "p2"] as const) {
+      const src = slot === "p1" ? match.p1Source : match.p2Source;
+      const loserSrc = slot === "p1" ? match.p1SourceLoser : match.p2SourceLoser;
+      if (src === null && !loserSrc) results.push({ matchId: match.id, slot });
+    }
+  }
+  return results;
+}
+
+export function addPlayerToSlot(
+  state: BracketState,
+  matchId: string,
+  slot: "p1" | "p2",
+  player: Player
+): BracketState {
+  const next = JSON.parse(JSON.stringify(state)) as BracketState;
+  const match = next.matches[matchId];
+  if (!match) return state;
+  const newPlayer = { ...player, id: `late-${Date.now()}` };
+  next.players = [...next.players, newPlayer];
+  if (slot === "p1") match.p1Source = newPlayer;
+  else match.p2Source = newPlayer;
+  return next;
+}
+
 export function countAffectedMatches(state: BracketState, matchId: string): number {
   const visited = new Set<string>();
   function walk(id: string) {

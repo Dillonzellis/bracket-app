@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BracketState, Match, generateBracket, reportResult, undoResult, countAffectedMatches, resolvePlayer } from "@/lib/bracket";
+import { BracketState, Match, generateBracket, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer } from "@/lib/bracket";
 import { cn } from "@/lib/cn";
 
 const MATCH_W = 280;
@@ -37,6 +37,9 @@ export default function BracketPage() {
   }, [router]);
 
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
+  const [lateEntry, setLateEntry] = useState(false);
+  const [lateName, setLateName] = useState("");
+  const [lateSlot, setLateSlot] = useState("");
 
   const handleWin = (matchId: string, winnerId: string) =>
     setState((s) => (s ? reportResult(s, matchId, winnerId) : s));
@@ -54,6 +57,21 @@ export default function BracketPage() {
     if (!confirmUndo) return;
     setState((s) => (s ? undoResult(s, confirmUndo.matchId) : s));
     setConfirmUndo(null);
+  };
+
+  const handleLateEntry = () => {
+    if (!state || !lateName.trim()) return;
+    const byeSlots = findByeSlots(state);
+    if (byeSlots.length > 0) {
+      if (!lateSlot) return;
+      const [matchId, slot] = lateSlot.split("|") as [string, "p1" | "p2"];
+      setState(addPlayerToSlot(state, matchId, slot, { id: "", name: lateName.trim() }));
+    } else {
+      setState(addPlayerToLosers(state, { id: "", name: lateName.trim() }));
+    }
+    setLateName("");
+    setLateSlot("");
+    setLateEntry(false);
   };
 
   if (!state) return null;
@@ -125,6 +143,13 @@ export default function BracketPage() {
         <span className="text-xl tracking-widest glow text-[var(--text)]">
           SSBM TOURNAMENT — DOUBLE ELIM
         </span>
+
+        <button
+          onClick={() => setLateEntry(true)}
+          className="ml-auto text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]"
+        >
+          + LATE ENTRY
+        </button>
       </div>
 
       {state.champion && (
@@ -202,6 +227,53 @@ export default function BracketPage() {
           )}
         </div>
       </div>
+
+      {lateEntry && (() => {
+        const byeSlots = findByeSlots(state);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+            <div className="bg-[var(--bg-card)] border border-[var(--border)] p-6 max-w-sm w-full mx-4 font-mono">
+              <div className="text-base tracking-widest font-bold text-[var(--text)] mb-3">+ LATE ENTRY</div>
+              <input
+                className="w-full px-2 py-2 text-base mb-3"
+                placeholder="Player name"
+                value={lateName}
+                onChange={e => setLateName(e.target.value)}
+                autoFocus
+              />
+              {byeSlots.length > 0 ? (
+                <select
+                  className="w-full px-2 py-2 text-sm mb-3"
+                  value={lateSlot}
+                  onChange={e => setLateSlot(e.target.value)}
+                >
+                  <option value="">Select open bye slot…</option>
+                  {byeSlots.map(({ matchId, slot }) => (
+                    <option key={`${matchId}|${slot}`} value={`${matchId}|${slot}`}>
+                      {matchId} — {slot === "p1" ? "top" : "bottom"} slot
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="text-sm text-[#e8001c] mb-3">
+                  No bye slots available — player will be placed directly into losers bracket.
+                </div>
+              )}
+              <div className="flex gap-3 mt-3">
+                <button onClick={handleLateEntry}
+                  disabled={!lateName.trim() || (byeSlots.length > 0 && !lateSlot)}
+                  className="flex-1 py-2 text-sm tracking-widest font-bold text-black bg-[#39ff14] border border-[#39ff14] disabled:opacity-40 hover:opacity-80 transition-opacity">
+                  ADD
+                </button>
+                <button onClick={() => { setLateEntry(false); setLateName(""); setLateSlot(""); }}
+                  className="flex-1 py-2 text-sm tracking-widest text-[var(--text-dim)] border border-[var(--border)] hover:text-[var(--text)] transition-colors">
+                  CANCEL
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {confirmUndo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
