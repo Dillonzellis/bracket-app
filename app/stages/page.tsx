@@ -9,7 +9,7 @@ const COUNTERPICKS = ["Dream Land 64", "Yoshi's Island Melee"];
 const ALL_STAGES = [...STARTERS, ...COUNTERPICKS];
 
 type Phase =
-  | { type: "high_roll"; p1Roll: number | null; p2Roll: number | null }
+  | { type: "stock_roll"; stocks: (1 | 2 | null)[]; running: boolean; winner: 1 | 2 | null; tie: boolean }
   | { type: "g1_strike"; turn: 1 | 2; bansLeft: number; banned: string[] }
   | { type: "g1_result"; stage: string }
   | { type: "cp_ban"; loser: 1 | 2; bansLeft: number; banned: string[] }
@@ -23,39 +23,240 @@ const P2_COLOR = "#ff8c42";
 
 function playerColor(n: 1 | 2) { return n === 1 ? P1_COLOR : P2_COLOR; }
 
-function SlotDisplay({ player, name, locked, value, tickerVal, winner, onRoll }: {
-  player: 1 | 2; name: string; locked: boolean; value: number | null;
-  tickerVal: number; winner: 1 | 2 | null; onRoll: () => void;
+// ── Mini match animation ──────────────────────────────────────────────────────
+type MatchState = {
+  p1x: number; p2x: number;          // 0–100 % across arena
+  p1stocks: number; p2stocks: number;
+  flash: 1 | 2 | null;               // which player just got hit
+  shake: boolean;
+  p1fly: boolean; p2fly: boolean;    // loser flies off
+  done: boolean;
+  winner: 1 | 2 | null;
+};
+
+const INIT_MATCH: MatchState = {
+  p1x: 15, p2x: 85, p1stocks: 2, p2stocks: 2,
+  flash: null, shake: false, p1fly: false, p2fly: false,
+  done: false, winner: null,
+};
+
+function MiniMatch({ p1Name, p2Name, onWinner }: {
+  p1Name: string; p2Name: string; onWinner: (w: 1 | 2) => void;
 }) {
-  const color = player === 1 ? P1_COLOR : P2_COLOR;
-  const display = locked ? value : tickerVal;
-  const isWinner = winner === player;
-  const isLoser = winner !== null && winner !== player;
+  const [ms, setMs] = useState<MatchState>(INIT_MATCH);
+  const [started, setStarted] = useState(false);
+  const rafRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function schedule(fn: () => void, delay: number) {
+    rafRef.current = setTimeout(fn, delay);
+  }
+
+  function runMatch() {
+    setStarted(true);
+    // True 50/50: pick winner first, then build elimination order around it
+    const winner: 1 | 2 = Math.random() < 0.5 ? 1 : 2;
+    const loser: 1 | 2 = winner === 1 ? 2 : 1;
+    // loser loses both stocks, winner loses 1 stock (randomly positioned in sequence)
+    const loserStocks = loser === 1 ? [0, 1] : [2, 3];
+    const winnerStock = winner === 1 ? (Math.random() < 0.5 ? 0 : 1) : (Math.random() < 0.5 ? 2 : 3);
+    const elimOrder = [...loserStocks, winnerStock].sort(() => Math.random() - 0.5);
+    const owners: (1 | 2)[] = [1, 1, 2, 2];
+
+    let t = 0;
+
+    // Slide together
+    t += 50;
+    schedule(() => setMs(s => ({ ...s, p1x: 35, p2x: 65 })), t);
+
+    // Each elimination
+    elimOrder.forEach((stockOwnerIdx, i) => {
+      const hitPlayer = owners[stockOwnerIdx];
+      const hitter = hitPlayer === 1 ? 2 : 1;
+
+      t += 600 + Math.random() * 400;
+      const tHit = t;
+      schedule(() => {
+        setMs(s => ({
+          ...s,
+          flash: hitPlayer,
+          shake: true,
+          p1stocks: hitPlayer === 1 ? s.p1stocks - 1 : s.p1stocks,
+          p2stocks: hitPlayer === 2 ? s.p2stocks - 1 : s.p2stocks,
+          // bounce hitter forward, victim back
+          p1x: hitter === 1 ? Math.min(s.p1x + 8, 45) : Math.max(s.p1x - 12, 5),
+          p2x: hitter === 2 ? Math.max(s.p2x - 8, 55) : Math.min(s.p2x + 12, 95),
+        }));
+      }, tHit);
+
+      t += 300;
+      schedule(() => {
+        setMs(s => ({
+          ...s, flash: null, shake: false,
+          // drift back toward center
+          p1x: 35, p2x: 65,
+        }));
+      }, t);
+    });
+
+    // Final blow — loser flies off
+    t += 600;
+    schedule(() => {
+      setMs(s => ({
+        ...s,
+        flash: winner === 1 ? 2 : 1,
+        shake: true,
+        p1stocks: winner === 2 ? 0 : s.p1stocks,
+        p2stocks: winner === 1 ? 0 : s.p2stocks,
+        p1fly: winner === 2,
+        p2fly: winner === 1,
+        p1x: winner === 2 ? -30 : s.p1x,
+        p2x: winner === 1 ? 130 : s.p2x,
+      }));
+    }, t);
+
+    t += 500;
+    schedule(() => {
+      setMs(s => ({ ...s, flash: null, shake: false, done: true, winner }));
+      onWinner(winner);
+    }, t);
+  }
+
+  useEffect(() => () => { if (rafRef.current) clearTimeout(rafRef.current); }, []);
+
+  const p1color = P1_COLOR;
+  const p2color = P2_COLOR;
+
   return (
-    <div className="flex-1 flex flex-col items-center gap-3">
-      <div className="text-xs tracking-widest font-bold" style={{ color }}>{name}</div>
-      <div className="w-full border-2 flex items-center justify-center relative overflow-hidden"
-        style={{
-          borderColor: isWinner ? "#39ff14" : isLoser ? "#333" : color,
-          height: 96,
-          background: locked ? `${color}11` : "transparent",
-          boxShadow: isWinner ? `0 0 18px #39ff1466` : locked ? `0 0 10px ${color}44` : "none",
-        }}>
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: "repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px)"
-        }} />
-        <span className="text-5xl font-bold tabular-nums" style={{
-          color: isWinner ? "#39ff14" : isLoser ? "#444" : locked ? color : `${color}99`,
-          textShadow: isWinner ? "0 0 12px #39ff14" : locked ? `0 0 8px ${color}` : "none",
-        }}>
-          {String(display ?? 0).padStart(2, "0")}
-        </span>
+    <div className={cn("select-none", ms.shake && "animate-[shake_0.15s_ease-in-out]")}
+      style={{ ['--shake' as string]: '4px' }}>
+      <style>{`
+        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+        @keyframes stockpop { 0%{transform:scale(1.6);opacity:1} 100%{transform:scale(0);opacity:0} }
+      `}</style>
+
+      {/* Stock bars */}
+      <div className="flex justify-between mb-3 px-1">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold tracking-widest" style={{ color: p1color }}>{p1Name}</span>
+          <div className="flex gap-1">
+            {[0,1].map(i => (
+              <div key={i} className="w-3 h-3 rounded-full border transition-all duration-200"
+                style={{
+                  borderColor: ms.p1stocks > i ? p1color : '#333',
+                  background: ms.p1stocks > i ? p1color : 'transparent',
+                  boxShadow: ms.p1stocks > i ? `0 0 6px ${p1color}` : 'none',
+                  animation: ms.flash === 1 && ms.p1stocks === i ? 'stockpop 0.3s forwards' : 'none',
+                }} />
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="flex gap-1">
+            {[0,1].map(i => (
+              <div key={i} className="w-3 h-3 rounded-full border transition-all duration-200"
+                style={{
+                  borderColor: ms.p2stocks > i ? p2color : '#333',
+                  background: ms.p2stocks > i ? p2color : 'transparent',
+                  boxShadow: ms.p2stocks > i ? `0 0 6px ${p2color}` : 'none',
+                  animation: ms.flash === 2 && ms.p2stocks === i ? 'stockpop 0.3s forwards' : 'none',
+                }} />
+            ))}
+          </div>
+          <span className="text-xs font-bold tracking-widest" style={{ color: p2color }}>{p2Name}</span>
+        </div>
       </div>
-      <button disabled={locked} onClick={onRoll}
-        className="w-full py-2.5 text-sm tracking-widest font-bold border-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        style={{ borderColor: locked ? "#333" : color, color: locked ? "#555" : color }}>
-        {locked ? "LOCKED" : "▶ ROLL"}
-      </button>
+
+      {/* Arena */}
+      <div className="relative border border-[var(--border)] overflow-hidden mb-4"
+        style={{ height: 120, background: '#0a0a0a' }}>
+        {/* Platform */}
+        <div className="absolute bottom-6 left-[10%] right-[10%] h-1 bg-[var(--border)]" />
+
+        {/* P1 character */}
+        <div className="absolute transition-all duration-500 ease-in-out"
+          style={{
+            left: `${ms.p1x}%`,
+            bottom: 28,
+            transform: 'translateX(-50%)',
+            transition: ms.p1fly ? 'left 0.4s ease-in, bottom 0.4s ease-in' : 'left 0.5s ease-in-out',
+          }}>
+          <div className="w-8 h-10 flex flex-col items-center gap-0.5">
+            {/* head */}
+            <div className="w-5 h-5 rounded-full border-2 transition-all duration-150"
+              style={{
+                borderColor: p1color,
+                background: ms.flash === 1 ? '#fff' : `${p1color}33`,
+                boxShadow: ms.flash === 1 ? `0 0 12px #fff` : `0 0 6px ${p1color}66`,
+              }} />
+            {/* body */}
+            <div className="w-6 h-5 border-2 transition-all duration-150"
+              style={{
+                borderColor: p1color,
+                background: ms.flash === 1 ? '#fff' : `${p1color}22`,
+              }} />
+          </div>
+        </div>
+
+        {/* P2 character */}
+        <div className="absolute transition-all duration-500 ease-in-out"
+          style={{
+            left: `${ms.p2x}%`,
+            bottom: 28,
+            transform: 'translateX(-50%)',
+            transition: ms.p2fly ? 'left 0.4s ease-in, bottom 0.4s ease-in' : 'left 0.5s ease-in-out',
+          }}>
+          <div className="w-8 h-10 flex flex-col items-center gap-0.5">
+            <div className="w-5 h-5 rounded-full border-2 transition-all duration-150"
+              style={{
+                borderColor: p2color,
+                background: ms.flash === 2 ? '#fff' : `${p2color}33`,
+                boxShadow: ms.flash === 2 ? `0 0 12px #fff` : `0 0 6px ${p2color}66`,
+              }} />
+            <div className="w-6 h-5 border-2 transition-all duration-150"
+              style={{
+                borderColor: p2color,
+                background: ms.flash === 2 ? '#fff' : `${p2color}22`,
+              }} />
+          </div>
+        </div>
+
+        {/* Hit flash overlay */}
+        {ms.flash && (
+          <div className="absolute inset-0 pointer-events-none transition-opacity duration-100"
+            style={{ background: `${playerColor(ms.flash)}18` }} />
+        )}
+      </div>
+
+      {!started && (
+        <button onClick={runMatch}
+          className="w-full py-3 text-base tracking-widest font-bold border-2 border-[var(--border)] text-[var(--text)] hover:border-[#f0c000] hover:text-[#f0c000] transition-colors">
+          ▶ FIGHT
+        </button>
+      )}
+
+      {started && !ms.done && (
+        <div className="text-center text-xs tracking-widest text-[var(--text-dim)] animate-pulse py-3">FIGHTING...</div>
+      )}
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function Stock({ owner, alive, dim }: { owner: 1 | 2; alive: boolean; dim: boolean }) {
+  const color = owner === 1 ? P1_COLOR : P2_COLOR;
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <div
+        className="w-14 h-14 rounded-full border-2 flex items-center justify-center transition-all duration-300"
+        style={{
+          borderColor: alive ? color : "#333",
+          background: alive ? `${color}22` : "transparent",
+          opacity: dim ? 0.25 : alive ? 1 : 0.15,
+          boxShadow: alive && !dim ? `0 0 12px ${color}66` : "none",
+        }}
+      >
+        <span className="text-lg font-bold" style={{ color: alive ? color : "#333" }}>●</span>
+      </div>
     </div>
   );
 }
@@ -70,35 +271,35 @@ function StrikePage() {
 
   const cpBans = 2;
 
-  const [phase, setPhase] = useState<Phase>({ type: "high_roll", p1Roll: null, p2Roll: null });
+  const [phase, setPhase] = useState<Phase>({ type: "stock_roll", stocks: [1, 1, 2, 2], running: false, winner: null, tie: false });
   const [games, setGames] = useState<GameRecord[]>([]);
   const [gameNum, setGameNum] = useState(1);
-  const [ticker, setTicker] = useState<{ p1: number; p2: number }>({ p1: 0, p2: 0 });
-  const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (phase.type !== "high_roll") { if (tickerRef.current) clearInterval(tickerRef.current); return; }
-    tickerRef.current = setInterval(() => {
-      setTicker({ p1: Math.floor(Math.random() * 99) + 1, p2: Math.floor(Math.random() * 99) + 1 });
-    }, 80);
-    return () => { if (tickerRef.current) clearInterval(tickerRef.current); };
-  }, [phase.type]);
-
-  function roll(player: 1 | 2) {
-    if (phase.type !== "high_roll") return;
-    if (player === 1 && phase.p1Roll !== null) return;
-    if (player === 2 && phase.p2Roll !== null) return;
-    const val = Math.floor(Math.random() * 99) + 1;
-    const next = player === 1
-      ? { ...phase, p1Roll: val }
-      : { ...phase, p2Roll: val };
-    // Check tie after both rolled
-    const p1 = player === 1 ? val : phase.p1Roll;
-    const p2 = player === 2 ? val : phase.p2Roll;
-    if (p1 !== null && p2 !== null && p1 === p2) {
-      setTimeout(() => setPhase({ type: "high_roll", p1Roll: null, p2Roll: null }), 1200);
-    }
-    setPhase(next);
+  function runStockRoll() {
+    if (phase.type !== "stock_roll" || phase.running) return;
+    // Shuffle elimination order for all 4 stocks, last one wins
+    const order = [0, 1, 2, 3].sort(() => Math.random() - 0.5);
+    const owners: (1 | 2)[] = [1, 1, 2, 2];
+    setPhase(p => p.type === "stock_roll" ? { ...p, running: true, stocks: [1, 1, 2, 2], winner: null, tie: false } : p);
+    let delay = 0;
+    order.slice(0, 3).forEach((stockIdx, i) => {
+      delay += 400 + Math.random() * 500;
+      const d = delay;
+      setTimeout(() => {
+        setPhase(p => {
+          if (p.type !== "stock_roll") return p;
+          const next = [...p.stocks] as (1 | 2 | null)[];
+          next[stockIdx] = null;
+          // After 3rd elimination, determine winner
+          if (i === 2) {
+            const lastIdx = order[3];
+            const winner = owners[lastIdx];
+            // Check if last two eliminated were same player (tie = both players lost last stock simultaneously isn't possible here, but check if winner's other stock was already gone)
+            return { ...p, stocks: next, running: false, winner };
+          }
+          return { ...p, stocks: next };
+        });
+      }, d);
+    });
   }
 
   function startStriking(first: 1 | 2) {
@@ -162,7 +363,7 @@ function StrikePage() {
   }
 
   function reset() {
-    setPhase({ type: "high_roll", p1Roll: null, p2Roll: null });
+    setPhase({ type: "stock_roll", stocks: [1, 1, 2, 2], running: false, winner: null, tie: false });
     setGames([]);
     setGameNum(1);
   }
@@ -174,11 +375,7 @@ function StrikePage() {
     phase.type === "cp_ban" ? phase.loser :
     phase.type === "cp_pick" ? phase.winner : null;
 
-  if (phase.type === "high_roll") {
-    const bothRolled = phase.p1Roll !== null && phase.p2Roll !== null;
-    const tie = bothRolled && phase.p1Roll === phase.p2Roll;
-    const winner: 1 | 2 | null = bothRolled && !tie ? (phase.p1Roll! > phase.p2Roll! ? 1 : 2) : null;
-
+  if (phase.type === "stock_roll") {
     return (
       <main className="min-h-screen flex flex-col items-center py-10 px-4 font-mono">
         <div className="w-full max-w-md">
@@ -187,32 +384,28 @@ function StrikePage() {
             <span className="text-sm tracking-widest text-[var(--text-dim)] flex-1 text-center">STAGE STRIKING · Bo{format}</span>
           </div>
 
-          <div className="text-center text-xs tracking-widest text-[var(--text-dim)] mb-6">HIGH ROLL STRIKES FIRST</div>
+          <div className="text-center text-xs tracking-widest text-[var(--text-dim)] mb-4">WINNER STRIKES FIRST</div>
 
-          <div className="flex gap-4 mb-6">
-            <SlotDisplay player={1} name={p1Name} locked={phase.p1Roll !== null} value={phase.p1Roll} tickerVal={ticker.p1} winner={winner} onRoll={() => roll(1)} />
-            <SlotDisplay player={2} name={p2Name} locked={phase.p2Roll !== null} value={phase.p2Roll} tickerVal={ticker.p2} winner={winner} onRoll={() => roll(2)} />
-          </div>
+          <MiniMatch
+            p1Name={p1Name}
+            p2Name={p2Name}
+            onWinner={w => setPhase(p => p.type === "stock_roll" ? { ...p, winner: w, running: false } : p)}
+          />
 
-          {tie && (
-            <div className="text-center text-sm tracking-widest text-[#f0c000] mb-4 animate-pulse">TIE — RE-ROLLING...</div>
-          )}
-
-          {winner && (
-            <div className="mb-6 text-center">
-              <div className="text-xs text-[var(--text-dim)] mb-2 tracking-widest">RESULT</div>
-              <div className="text-xl font-bold tracking-widest mb-4" style={{ color: playerColor(winner) }}>
-                {playerName(winner)} STRIKES FIRST
+          {phase.winner && (
+            <div className="mt-6 text-center">
+              <div className="text-xl font-bold tracking-widest mb-4" style={{ color: playerColor(phase.winner), textShadow: `0 0 10px ${playerColor(phase.winner)}` }}>
+                {playerName(phase.winner)} STRIKES FIRST
               </div>
-              <button onClick={() => startStriking(winner)}
-                className="w-full py-3 text-base tracking-widest font-bold"
-                style={{ background: playerColor(winner), border: `2px solid ${playerColor(winner)}`, color: "#000" }}>
+              <button onClick={() => startStriking(phase.winner!)}
+                className="w-full py-3 text-base tracking-widest font-bold mb-3"
+                style={{ background: playerColor(phase.winner), border: `2px solid ${playerColor(phase.winner)}`, color: "#000" }}>
                 ▶ START STRIKING
               </button>
             </div>
           )}
 
-          <div className="border-t border-[var(--border)] pt-5 space-y-4">
+          <div className="border-t border-[var(--border)] pt-5 mt-6 space-y-4">
             <button onClick={() => { setGameNum(1); setPhase({ type: "g1_result", stage: "Battlefield" }); }}
               className="w-full py-2 text-sm tracking-widest border border-[var(--border)] text-[var(--text-dim)] hover:border-[var(--text)] hover:text-[var(--text)] transition-colors">
               ⚔ START ON BATTLEFIELD
