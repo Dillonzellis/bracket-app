@@ -296,15 +296,15 @@ export default function BracketPage() {
             </form>
           )}
           <div className="flex items-center gap-1 shrink-0 ml-auto">
-            <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
+            <button onClick={() => setZoom(z => Math.max(0.1, +(z - 0.1).toFixed(2)))}
               className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
             <button onClick={() => setZoom(1)}
               className="px-2 h-8 font-mono text-xs text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
-            <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
+            <button onClick={() => setZoom(z => Math.min(1, +(z + 0.1).toFixed(2)))}
               className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
           </div>
           <button onClick={() => setDrawerOpen(o => !o)}
-            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 py-1 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
+            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
             ▲ INFO
           </button>
         </div>
@@ -316,12 +316,12 @@ export default function BracketPage() {
             className="flex-1 min-w-0 px-2 py-1 text-sm font-mono"
           />
           <button onClick={() => setLateEntry(true)}
-            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 py-1 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
+            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
             + LATE ENTRY
           </button>
           <button onClick={() => { setEditMode(m => !m); setEditMatchId(null); setMoveFrom(null); }}
             className={cn(
-              "text-xs tracking-widest font-mono transition-colors border px-2 py-1 shrink-0",
+              "text-xs tracking-widest font-mono transition-colors border px-2 h-8 shrink-0",
               editMode
                 ? "border-[#f0c000] text-[#f0c000]"
                 : "border-[var(--border)] text-[var(--text)] hover:border-[#f0c000] hover:text-[#f0c000]"
@@ -347,13 +347,13 @@ export default function BracketPage() {
       )}
 
       {/* Scrollable bracket area */}
-      <div className="flex-1 overflow-auto p-4 pt-8">
+      <div className="flex-1 overflow-auto p-4 pt-20">
         <div style={{ width: totalW * zoom, height: (totalH + 36) * zoom }}>
         <div className="relative origin-top-left" style={{ width: totalW, height: totalH + 36, transform: `scale(${zoom})` }}>
           <div className="absolute text-lg tracking-widest font-bold text-(--text) glow"
-            style={{ top: wOffsetY, left: 0, transform: "translateY(-22px)" }}>▸ WINNERS BRACKET</div>
+            style={{ top: wOffsetY, left: 0, transform: "translateY(-52px)" }}>▸ WINNERS BRACKET</div>
           <div className="absolute text-base tracking-widest font-bold text-[#e8001c]"
-            style={{ top: lOffsetY, left: 0, transform: "translateY(-22px)", textShadow: "0 0 8px #e8001c" }}>▸ LOSERS BRACKET</div>
+            style={{ top: lOffsetY, left: 0, transform: "translateY(-52px)", textShadow: "0 0 8px #e8001c" }}>▸ LOSERS BRACKET</div>
           <div className="absolute text-base tracking-widest font-bold text-center text-[#f0c000]"
             style={{ left: gfColX, top: gfY - 24, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>★ GRAND FINALS</div>
 
@@ -366,7 +366,7 @@ export default function BracketPage() {
             return (
               <div key={`w${ri}`}>
                 <div className="absolute text-base text-center text-(--text-dim)"
-                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>R{ri + 1}</div>
+                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>W-R{ri + 1}</div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + wYTable[ri][mi] }}>
                     <MatchCard match={state.matches[id]} state={state}
