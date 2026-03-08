@@ -48,9 +48,9 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
   const slots = ["p1", "p2"] as const;
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex flex-col justify-end sm:flex-row sm:justify-end" onClick={onClose}>
       <div
-        className="relative h-full w-full max-w-sm bg-[var(--bg-card)] border-l border-[var(--border)] flex flex-col font-mono overflow-y-auto"
+        className="relative w-full max-h-[85vh] sm:h-full sm:max-h-full sm:max-w-sm bg-[var(--bg-card)] border-t sm:border-t-0 sm:border-l border-[var(--border)] flex flex-col font-mono overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

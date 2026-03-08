@@ -262,75 +262,74 @@ export default function BracketPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--bg)]">
-      <div className="flex items-center gap-4 px-5 py-4 border-b border-[var(--border)] bg-[var(--bg-card)]">
-        <button onClick={() => router.push("/")}
-          className="text-sm tracking-widest font-mono text-[var(--text)] hover:text-[#39ff14] transition-colors">
-          ◀ MENU
-        </button>
-        <svg width="32" height="16" viewBox="0 0 120 60" className="opacity-60">
-          <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="2"/>
-          <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
-          <ellipse cx="102" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
-          <circle cx="82" cy="32" r="7" fill="#00c846"/>
-          <circle cx="70" cy="40" r="5" fill="#e8001c"/>
-          <circle cx="92" cy="40" r="5" fill="#8888ff"/>
-          <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
-        </svg>
-        <span className="text-xl tracking-widest glow text-[var(--text)] cursor-pointer hover:opacity-70 transition-opacity"
-          title="Click to rename"
-          onClick={() => setRenamingName(record.name)}>
-          {record.name}
-        </span>
-        {renamingName !== null && (
-          <form onSubmit={e => {
-            e.preventDefault();
-            if (!renamingName.trim()) return;
-            const updated = { ...record, name: renamingName.trim() };
-            setRecord(updated);
-            saveTournament(updated);
-            setRenamingName(null);
-          }} className="flex items-center gap-1">
-            <input autoFocus className="px-2 py-1 text-base font-mono w-48"
-              value={renamingName} onChange={e => setRenamingName(e.target.value)}
-              onKeyDown={e => e.key === "Escape" && setRenamingName(null)} />
-            <button type="submit" className="text-xs px-2 py-1 border border-[var(--border)] text-[var(--text)] hover:border-[#39ff14] transition-colors">OK</button>
-            <button type="button" onClick={() => setRenamingName(null)} className="text-xs px-2 py-1 text-[var(--text)] hover:text-[#e8001c] transition-colors">✕</button>
-          </form>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
-            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
-          <button onClick={() => setZoom(1)}
-            className="px-2 h-7 font-mono text-xs text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
-          <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
-            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
+    <main className="h-screen flex flex-col bg-[var(--bg)]">
+      {/* Fixed header */}
+      <div className="shrink-0 border-b border-[var(--border)] bg-[var(--bg-card)]">
+        {/* Top row: nav + title + actions */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          <button onClick={() => router.push("/")}
+            className="text-sm tracking-widest font-mono text-[var(--text)] hover:text-[#39ff14] transition-colors shrink-0">
+            ◀ MENU
+          </button>
+          <span className="text-base tracking-widest glow text-[var(--text)] cursor-pointer hover:opacity-70 transition-opacity truncate flex-1 min-w-0"
+            title="Click to rename"
+            onClick={() => setRenamingName(record.name)}>
+            {record.name}
+          </span>
+          {renamingName !== null && (
+            <form onSubmit={e => {
+              e.preventDefault();
+              if (!renamingName.trim()) return;
+              const updated = { ...record, name: renamingName.trim() };
+              setRecord(updated);
+              saveTournament(updated);
+              setRenamingName(null);
+            }} className="flex items-center gap-1 flex-1">
+              <input autoFocus className="px-2 py-1 text-sm font-mono flex-1 min-w-0"
+                value={renamingName} onChange={e => setRenamingName(e.target.value)}
+                onKeyDown={e => e.key === "Escape" && setRenamingName(null)} />
+              <button type="submit" className="text-xs px-2 py-1 border border-[var(--border)] text-[var(--text)] hover:border-[#39ff14] transition-colors shrink-0">OK</button>
+              <button type="button" onClick={() => setRenamingName(null)} className="text-xs px-2 py-1 text-[var(--text)] hover:text-[#e8001c] transition-colors shrink-0">✕</button>
+            </form>
+          )}
+          <div className="flex items-center gap-1 shrink-0 ml-auto">
+            <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
+              className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
+            <button onClick={() => setZoom(1)}
+              className="px-2 h-8 font-mono text-xs text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
+            <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
+              className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
+          </div>
+          <button onClick={() => setDrawerOpen(o => !o)}
+            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 py-1 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
+            ▲ INFO
+          </button>
         </div>
-        <button onClick={() => setLateEntry(true)}
-          className="text-sm tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[#39ff14] hover:text-[#39ff14]">
-          + LATE ENTRY
-        </button>
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="SEARCH…"
-          className="w-36 px-2 py-1 text-sm font-mono"
-        />
-        <button onClick={() => setDrawerOpen(o => !o)}
-          className="text-sm tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[#39ff14] hover:text-[#39ff14]">
-          ▲ INFO
-        </button>
+        {/* Second row: search + late entry (collapses nicely on mobile) */}
+        <div className="flex items-center gap-2 px-3 pb-2">
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="SEARCH…"
+            className="flex-1 min-w-0 px-2 py-1 text-sm font-mono"
+          />
+          <button onClick={() => setLateEntry(true)}
+            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 py-1 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
+            + LATE ENTRY
+          </button>
+        </div>
       </div>
 
       {state.champion && (
-        <div className="text-center py-3 border-b border-(--border) bg-[#1a0a2e]">
-          <span className="text-lg tracking-widest font-bold text-[#f0c000]"
+        <div className="shrink-0 text-center py-2 border-b border-[var(--border)] bg-[#1a1a0a]">
+          <span className="text-sm tracking-widest font-bold text-[#f0c000]"
             style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}>
-            ★ GRAND CHAMPION: {state.champion.name} ★
+            ★ CHAMPION: {state.champion.name} ★
           </span>
         </div>
       )}
 
-      <div className="overflow-x-auto p-6 pt-16">
+      {/* Scrollable bracket area */}
+      <div className="flex-1 overflow-auto p-4 pt-8">
         <div style={{ width: totalW * zoom, height: (totalH + 36) * zoom }}>
         <div className="relative origin-top-left" style={{ width: totalW, height: totalH + 36, transform: `scale(${zoom})` }}>
           <div className="absolute text-lg tracking-widest font-bold text-(--text) glow"
