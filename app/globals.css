@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --purple: #7b2fbe;
-  --purple-light: #a855f7;
-  --purple-dim: #3b1a5a;
-  --purple-dark: #0d0514;
+  --purple: #9b4fde;
+  --purple-light: #c084fc;
+  --purple-dim: #5a2a7a;
+  --purple-dark: #1a0a2e;
   --gcn-green: #00c846;
   --gcn-red: #e8001c;
   --gcn-blue: #0050c8;
   --gcn-yellow: #f0c000;
   --gcn-gray: #8c8c8c;
-  --bg: #080410;
-  --bg-card: #160d2e;
-  --border: #2a5a2a;
-  --text: #d4ffb8;
-  --text-dim: #5a9a48;
-  --scanline: rgba(0, 0, 0, 0.3);
+  --bg: #151e28;
+  --bg-card: #1e2d3d;
+  --border: #3a7a3a;
+  --text: #f0fff0;
+  --text-dim: #9dd880;
+  --scanline: rgba(0, 0, 0, 0.07);
 }
 
 * { box-sizing: border-box; }
@@ -48,7 +48,7 @@ body::after {
   content: "";
   position: fixed;
   inset: 0;
-  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
+  background: radial-gradient(ellipse at center, transparent 65%, rgba(0,0,0,0.2) 100%);
   pointer-events: none;
   z-index: 9998;
 }

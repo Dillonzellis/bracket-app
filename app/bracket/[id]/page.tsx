@@ -239,7 +239,7 @@ export default function BracketPage() {
       const pmi = wParent[ri][mi];
       if (pmi === null) continue;
       addPath(cx + MATCH_W, wOffsetY + wYTable[ri][mi] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2,
-        wOffsetY + wYTable[ri + 1][pmi] + MATCH_H / 2, colX(ri + 1), "#1a3a1a");
+        wOffsetY + wYTable[ri + 1][pmi] + MATCH_H / 2, colX(ri + 1), "#2d6b2d");
     }
   }
   for (let ri = 0; ri < lRounds.length - 1; ri++) {
@@ -249,26 +249,26 @@ export default function BracketPage() {
       const pmi = lParent[ri][mi];
       if (pmi === null) continue;
       addPath(cx + MATCH_W, lOffsetY + lYTable[ri][mi] + MATCH_H / 2, cx + MATCH_W + (nx - cx - MATCH_W) / 2,
-        lOffsetY + lYTable[ri + 1][pmi] + MATCH_H / 2, nx, "#3d0820");
+        lOffsetY + lYTable[ri + 1][pmi] + MATCH_H / 2, nx, "#7a1020");
     }
   }
   if (wRounds.length > 0) {
     const cx = colX(wRounds.length - 1);
-    addPath(cx + MATCH_W, wOffsetY + wYTable[wRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + MATCH_H / 4, gfColX, "#1a3a1a");
+    addPath(cx + MATCH_W, wOffsetY + wYTable[wRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + MATCH_H / 4, gfColX, "#2d6b2d");
   }
   if (lRounds.length > 0) {
     const cx = lRoundX[lRounds.length - 1];
-    addPath(cx + MATCH_W, lOffsetY + lYTable[lRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + (MATCH_H * 3) / 4, gfColX, "#3d0820");
+    addPath(cx + MATCH_W, lOffsetY + lYTable[lRounds.length - 1][0] + MATCH_H / 2, cx + MATCH_W + COL_GAP / 2, gfY + (MATCH_H * 3) / 4, gfColX, "#7a1020");
   }
 
   return (
     <main className="min-h-screen bg-[var(--bg)]">
-      <div className="flex items-center gap-4 px-5 py-5 border-b border-[var(--border)]">
+      <div className="flex items-center gap-4 px-5 py-4 border-b border-[var(--border)] bg-[var(--bg-card)]">
         <button onClick={() => router.push("/")}
-          className="text-lg tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">
+          className="text-sm tracking-widest font-mono text-[var(--text)] hover:text-[#39ff14] transition-colors">
           ◀ MENU
         </button>
-        <svg width="32" height="16" viewBox="0 0 120 60" className="opacity-50">
+        <svg width="32" height="16" viewBox="0 0 120 60" className="opacity-60">
           <ellipse cx="60" cy="38" rx="55" ry="22" fill="#3b1a5a" stroke="#7b2fbe" strokeWidth="2"/>
           <ellipse cx="18" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
           <ellipse cx="102" cy="50" rx="14" ry="10" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
@@ -294,20 +294,20 @@ export default function BracketPage() {
             <input autoFocus className="px-2 py-1 text-base font-mono w-48"
               value={renamingName} onChange={e => setRenamingName(e.target.value)}
               onKeyDown={e => e.key === "Escape" && setRenamingName(null)} />
-            <button type="submit" className="text-xs px-2 py-1 border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">OK</button>
-            <button type="button" onClick={() => setRenamingName(null)} className="text-xs px-2 py-1 text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">✕</button>
+            <button type="submit" className="text-xs px-2 py-1 border border-[var(--border)] text-[var(--text)] hover:border-[#39ff14] transition-colors">OK</button>
+            <button type="button" onClick={() => setRenamingName(null)} className="text-xs px-2 py-1 text-[var(--text)] hover:text-[#e8001c] transition-colors">✕</button>
           </form>
         )}
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
-            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
+            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
           <button onClick={() => setZoom(1)}
-            className="px-2 h-7 font-mono text-xs text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
+            className="px-2 h-7 font-mono text-xs text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
           <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
-            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
+            className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
         </div>
         <button onClick={() => setLateEntry(true)}
-          className="text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
+          className="text-sm tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[#39ff14] hover:text-[#39ff14]">
           + LATE ENTRY
         </button>
         <input
@@ -316,7 +316,7 @@ export default function BracketPage() {
           className="w-36 px-2 py-1 text-sm font-mono"
         />
         <button onClick={() => setDrawerOpen(o => !o)}
-          className="text-sm tracking-widest font-mono text-(--text-dim) hover:text-(--text) transition-colors border border-(--border) px-3 py-1 hover:border-(--text)">
+          className="text-sm tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[#39ff14] hover:text-[#39ff14]">
           ▲ INFO
         </button>
       </div>
@@ -353,7 +353,7 @@ export default function BracketPage() {
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + wYTable[ri][mi] }}>
                     <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
-                      winnerColor="#39ff14" borderColor="#1a3a1a" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
+                      winnerColor="#39ff14" borderColor="#2d6b2d" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                   </div>
                 ))}
               </div>
@@ -375,7 +375,7 @@ export default function BracketPage() {
                     {round.map((id, mi) => (
                       <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + lYTable[roundIdx][mi] }}>
                         <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
-                          winnerColor="#e8001c" borderColor="#3d0820" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
+                          winnerColor="#e8001c" borderColor="#7a1020" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                       </div>
                     ))}
                   </div>
@@ -387,7 +387,7 @@ export default function BracketPage() {
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
               <MatchCard match={gf} state={state} onOpen={setActiveMatchId}
-                winnerColor="#f0c000" borderColor="#3d3000" highlight={highlightedMatchIds.has(gf.id)} ready={readyMatchIds.has(gf.id)} />
+                winnerColor="#f0c000" borderColor="#6b5500" highlight={highlightedMatchIds.has(gf.id)} ready={readyMatchIds.has(gf.id)} />
             </div>
           )}
         </div>
