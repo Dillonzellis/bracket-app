@@ -394,6 +394,61 @@ export function undoResult(state: BracketState, matchId: string): BracketState {
   return next;
 }
 
+export type Standing = { player: Player; place: string };
+
+export function getStandings(state: BracketState): Standing[] {
+  const standings: Standing[] = [];
+  if (state.champion) standings.push({ player: state.champion, place: "1st" });
+  const gf = state.matches[state.grandFinalsId];
+  if (gf?.loser) standings.push({ player: gf.loser, place: "2nd" });
+
+  // Build groups: players eliminated in the same losers round share a placement.
+  // Iterate rounds in reverse (last round = highest remaining placement).
+  const placeNames = ["3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
+  let placeIdx = 0;
+  for (const roundIds of [...state.losersRounds].reverse()) {
+    const losers = roundIds.map(id => state.matches[id].loser).filter(Boolean) as Player[];
+    if (losers.length === 0) continue;
+    const place = losers.length === 1
+      ? (placeNames[placeIdx] ?? `${placeIdx + 3}th`)
+      : `T-${placeNames[placeIdx] ?? `${placeIdx + 3}th`}`;
+    losers.forEach(p => standings.push({ player: p, place }));
+    placeIdx += losers.length;
+  }
+  return standings;
+}
+
+export function getReadyMatches(state: BracketState): Match[] {
+  return Object.values(state.matches).filter(m => {
+    if (m.winner) return false;
+    const p1 = resolvePlayer(state, m, "p1");
+    const p2 = resolvePlayer(state, m, "p2");
+    return !!p1 && !!p2;
+  });
+}
+
+export function disqualifyPlayer(state: BracketState, playerId: string): BracketState {
+  const next = JSON.parse(JSON.stringify(state)) as BracketState;
+  // Find the active (unplayed) match containing this player
+  for (const match of Object.values(next.matches)) {
+    if (match.winner) continue;
+    const p1 = resolvePlayer(next, match, "p1");
+    const p2 = resolvePlayer(next, match, "p2");
+    const isDQ1 = p1?.id === playerId;
+    const isDQ2 = p2?.id === playerId;
+    if (!isDQ1 && !isDQ2) continue;
+    const winner = isDQ1 ? p2 : p1;
+    const loser = isDQ1 ? p1 : p2;
+    if (!winner || !loser) continue;
+    match.winner = winner;
+    match.loser = { ...loser, name: `${loser.name} [DQ]` };
+    if (match.bracket === "grand-finals") next.champion = winner;
+    autoAdvanceByes(next);
+    return next;
+  }
+  return state;
+}
+
 export function reportResult(state: BracketState, matchId: string, winnerId: string): BracketState {
   const next = JSON.parse(JSON.stringify(state)) as BracketState;
   const match = next.matches[matchId];

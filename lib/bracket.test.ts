@@ -1,6 +1,7 @@
 import {
   generateBracket, reportResult, resolvePlayer, undoResult,
   countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers,
+  getReadyMatches, getStandings, disqualifyPlayer,
   BracketState, Player, Game,
 } from "@/lib/bracket";
 
@@ -462,5 +463,177 @@ describe("countAffectedMatches exact count", () => {
     const state = generateBracket(makePlayers(4));
     const lastWR = state.winnersRounds[state.winnersRounds.length - 1][0];
     expect(countAffectedMatches(state, lastWR)).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("getReadyMatches", () => {
+  test("returns all matches with both players resolved and no result", () => {
+    const state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    const ready = getReadyMatches(state);
+    // 4-player bracket: 2 W-R1 matches both ready immediately
+    expect(ready.length).toBe(2);
+    ready.forEach(m => expect(m.winner).toBeNull());
+  });
+
+  test("excludes matches where a player is still TBD", () => {
+    // 5-player bracket: some losers matches wait on upstream results
+    const state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+      { id: "p5", name: "P5" },
+    ]);
+    const ready = getReadyMatches(state);
+    // Only W-R1 matches are ready; losers matches wait on losers from W-R1
+    ready.forEach(m => {
+      const p1 = resolvePlayer(state, m, "p1");
+      const p2 = resolvePlayer(state, m, "p2");
+      expect(p1).not.toBeNull();
+      expect(p2).not.toBeNull();
+    });
+  });
+
+  test("excludes already-completed matches", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    const firstId = state.winnersRounds[0][0];
+    const match = state.matches[firstId];
+    const p1 = resolvePlayer(state, match, "p1")!;
+    state = reportResult(state, firstId, p1.id);
+    const ready = getReadyMatches(state);
+    expect(ready.find(m => m.id === firstId)).toBeUndefined();
+  });
+});
+
+describe("getStandings", () => {
+  test("returns empty before any results", () => {
+    const state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    expect(getStandings(state)).toEqual([]);
+  });
+
+  test("1st place is champion after full tournament", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    // Simulate full tournament: always pick p1 of each match
+    let safety = 0;
+    while (!state.champion && safety++ < 20) {
+      const ready = getReadyMatches(state);
+      if (ready.length === 0) break;
+      const m = ready[0];
+      const winner = resolvePlayer(state, m, "p1") ?? resolvePlayer(state, m, "p2");
+      if (winner) state = reportResult(state, m.id, winner.id);
+    }
+    const standings = getStandings(state);
+    expect(standings[0]?.place).toBe("1st");
+    expect(standings[0]?.player).toEqual(state.champion);
+  });
+
+  test("2nd place is GF loser", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    let safety = 0;
+    while (!state.champion && safety++ < 20) {
+      const ready = getReadyMatches(state);
+      if (ready.length === 0) break;
+      const m = ready[0];
+      const winner = resolvePlayer(state, m, "p1") ?? resolvePlayer(state, m, "p2");
+      if (winner) state = reportResult(state, m.id, winner.id);
+    }
+    const standings = getStandings(state);
+    const gf = state.matches[state.grandFinalsId];
+    expect(standings[1]?.place).toBe("2nd");
+    expect(standings[1]?.player).toEqual(gf.loser);
+  });
+
+  test("players eliminated in same losers round share a tied placement", () => {
+    // 8-player bracket: L-R1 has 4 matches, all losers eliminated together = T-5th
+    let state = generateBracket(
+      Array.from({ length: 8 }, (_, i) => ({ id: `p${i}`, name: `P${i + 1}` }))
+    );
+    // Report all W-R1 results so L-R1 is populated
+    let safety = 0;
+    while (safety++ < 30) {
+      const ready = getReadyMatches(state);
+      if (ready.length === 0) break;
+      const m = ready[0];
+      const winner = resolvePlayer(state, m, "p1") ?? resolvePlayer(state, m, "p2");
+      if (winner) state = reportResult(state, m.id, winner.id);
+      // Stop after first losers round is done
+      if (state.losersRounds[0]?.every(id => state.matches[id].winner)) break;
+    }
+    const standings = getStandings(state);
+    const tiedPlaces = standings.filter(s => s.place.startsWith("T-"));
+    if (tiedPlaces.length > 0) {
+      const place = tiedPlaces[0].place;
+      expect(tiedPlaces.every(s => s.place === place)).toBe(true);
+    }
+  });
+});
+
+describe("disqualifyPlayer", () => {
+  test("auto-advances opponent when player is DQ'd", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    const matchId = state.winnersRounds[0][0];
+    const match = state.matches[matchId];
+    const p1 = resolvePlayer(state, match, "p1")!;
+    const p2 = resolvePlayer(state, match, "p2")!;
+    state = disqualifyPlayer(state, p1.id);
+    expect(state.matches[matchId].winner?.id).toBe(p2.id);
+  });
+
+  test("marks loser name with [DQ]", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    const matchId = state.winnersRounds[0][0];
+    const match = state.matches[matchId];
+    const p1 = resolvePlayer(state, match, "p1")!;
+    state = disqualifyPlayer(state, p1.id);
+    expect(state.matches[matchId].loser?.name).toContain("[DQ]");
+  });
+
+  test("is a no-op if player has no active match", () => {
+    const state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    const result = disqualifyPlayer(state, "nonexistent-id");
+    expect(result).toBe(state);
+  });
+
+  test("sets champion if DQ happens in grand finals", () => {
+    let state = generateBracket([
+      { id: "p1", name: "P1" }, { id: "p2", name: "P2" },
+      { id: "p3", name: "P3" }, { id: "p4", name: "P4" },
+    ]);
+    let safety = 0;
+    while (!getReadyMatches(state).find(m => m.id === state.grandFinalsId) && safety++ < 20) {
+      const ready = getReadyMatches(state);
+      if (ready.length === 0) break;
+      const m = ready[0];
+      const winner = resolvePlayer(state, m, "p1") ?? resolvePlayer(state, m, "p2");
+      if (winner) state = reportResult(state, m.id, winner.id);
+    }
+    const gf = state.matches[state.grandFinalsId];
+    const p1 = resolvePlayer(state, gf, "p1");
+    if (p1) {
+      state = disqualifyPlayer(state, p1.id);
+      expect(state.champion).not.toBeNull();
+    }
   });
 });

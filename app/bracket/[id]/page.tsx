@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer } from "@/lib/bracket";
+import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
 import MatchPanel from "./MatchPanel";
@@ -38,6 +38,10 @@ export default function BracketPage() {
   }, [id, router]);
 
   const [zoom, setZoom] = useState(1);
+  const [search, setSearch] = useState("");
+  const [renamingName, setRenamingName] = useState<string | null>(null);
+  const [drawerTab, setDrawerTab] = useState<"queue" | "standings">("queue");
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
@@ -76,6 +80,12 @@ export default function BracketPage() {
     setConfirmUndo(null);
   };
 
+  const handleDQ = (matchId: string, playerId: string) => {
+    if (!record) return;
+    update(disqualifyPlayer(record.state, playerId));
+    setActiveMatchId(null);
+  };
+
   const handleLateEntry = () => {
     if (!record || !lateName.trim()) return;
     const byeSlots = findByeSlots(record.state);
@@ -95,6 +105,20 @@ export default function BracketPage() {
   const gf = state.matches[state.grandFinalsId];
   const wRounds = state.winnersRounds;
   const lRounds = state.losersRounds;
+
+  const readyMatches = getReadyMatches(state);
+  const standings = getStandings(state);
+
+  const searchLower = search.trim().toLowerCase();
+  const highlightedMatchIds = searchLower
+    ? new Set(Object.values(state.matches).filter(m => {
+        const p1 = resolvePlayer(state, m, "p1");
+        const p2 = resolvePlayer(state, m, "p2");
+        return p1?.name.toLowerCase().includes(searchLower) || p2?.name.toLowerCase().includes(searchLower);
+      }).map(m => m.id))
+    : new Set<string>();
+
+  const readyMatchIds = new Set(readyMatches.map(m => m.id));
 
   const wH = sectionH(wRounds[0]?.length ?? 1);
   const lH = sectionH(lRounds[0]?.length ?? 1);
@@ -151,7 +175,27 @@ export default function BracketPage() {
           <circle cx="92" cy="40" r="5" fill="#8888ff"/>
           <circle cx="44" cy="24" r="8" fill="#2a1545" stroke="#7b2fbe" strokeWidth="1.5"/>
         </svg>
-        <span className="text-xl tracking-widest glow text-[var(--text)]">{record.name}</span>
+        <span className="text-xl tracking-widest glow text-[var(--text)] cursor-pointer hover:opacity-70 transition-opacity"
+          title="Click to rename"
+          onClick={() => setRenamingName(record.name)}>
+          {record.name}
+        </span>
+        {renamingName !== null && (
+          <form onSubmit={e => {
+            e.preventDefault();
+            if (!renamingName.trim()) return;
+            const updated = { ...record, name: renamingName.trim() };
+            setRecord(updated);
+            saveTournament(updated);
+            setRenamingName(null);
+          }} className="flex items-center gap-1">
+            <input autoFocus className="px-2 py-1 text-base font-mono w-48"
+              value={renamingName} onChange={e => setRenamingName(e.target.value)}
+              onKeyDown={e => e.key === "Escape" && setRenamingName(null)} />
+            <button type="submit" className="text-xs px-2 py-1 border border-[var(--border)] text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">OK</button>
+            <button type="button" onClick={() => setRenamingName(null)} className="text-xs px-2 py-1 text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">✕</button>
+          </form>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.1).toFixed(2)))}
             className="w-7 h-7 flex items-center justify-center font-mono text-base text-[var(--text-dim)] hover:text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
@@ -163,6 +207,15 @@ export default function BracketPage() {
         <button onClick={() => setLateEntry(true)}
           className="text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
           + LATE ENTRY
+        </button>
+        <input
+          value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="SEARCH…"
+          className="w-36 px-2 py-1 text-sm font-mono"
+        />
+        <button onClick={() => setDrawerOpen(o => !o)}
+          className="text-sm tracking-widest font-mono text-[var(--text-dim)] hover:text-[var(--text)] transition-colors border border-[var(--border)] px-3 py-1 hover:border-[var(--text)]">
+          ▲ INFO
         </button>
       </div>
 
@@ -199,7 +252,7 @@ export default function BracketPage() {
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + cardY(wH, count, mi) }}>
                     <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
-                      winnerColor="#39ff14" borderColor="#1a3a1a" />
+                      winnerColor="#39ff14" borderColor="#1a3a1a" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                   </div>
                 ))}
               </div>
@@ -216,7 +269,7 @@ export default function BracketPage() {
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + cardY(lH, count, mi) }}>
                     <MatchCard match={state.matches[id]} state={state} onOpen={setActiveMatchId}
-                      winnerColor="#e8001c" borderColor="#3d0820" />
+                      winnerColor="#e8001c" borderColor="#3d0820" highlight={highlightedMatchIds.has(id)} ready={readyMatchIds.has(id)} />
                   </div>
                 ))}
               </div>
@@ -226,7 +279,7 @@ export default function BracketPage() {
           {gf && (
             <div className="absolute" style={{ left: gfColX, top: gfY }}>
               <MatchCard match={gf} state={state} onOpen={setActiveMatchId}
-                winnerColor="#f0c000" borderColor="#3d3000" />
+                winnerColor="#f0c000" borderColor="#3d3000" highlight={highlightedMatchIds.has(gf.id)} ready={readyMatchIds.has(gf.id)} />
             </div>
           )}
         </div>
@@ -244,10 +297,63 @@ export default function BracketPage() {
             winnerColor={wc}
             onConfirm={handleWin}
             onUndo={handleUndo}
+            onDQ={handleDQ}
             onClose={() => setActiveMatchId(null)}
           />
         );
       })()}
+
+      {drawerOpen && (
+        <div className="fixed bottom-0 left-0 right-0 z-30 bg-[var(--bg-card)] border-t border-[var(--border)] font-mono">
+          <div className="flex items-center gap-0 border-b border-[var(--border)]">
+            {(["queue", "standings"] as const).map(tab => (
+              <button key={tab} onClick={() => setDrawerTab(tab)}
+                className={cn("px-4 py-2 text-xs tracking-widest transition-colors",
+                  drawerTab === tab ? "text-[var(--text)] border-b-2 border-[var(--text)]" : "text-[var(--text-dim)] hover:text-[var(--text)]"
+                )}>
+                {tab === "queue" ? `▶ ON DECK (${readyMatches.length})` : `★ STANDINGS`}
+              </button>
+            ))}
+            <button onClick={() => setDrawerOpen(false)} className="ml-auto px-3 py-2 text-xs text-[var(--text-dim)] hover:text-[var(--text)]">✕</button>
+          </div>
+          <div className="overflow-x-auto">
+            {drawerTab === "queue" ? (
+              <div className="flex gap-3 px-4 py-3">
+                {readyMatches.length === 0
+                  ? <span className="text-sm text-[var(--text-dim)] italic">No matches ready</span>
+                  : readyMatches.map(m => {
+                      const p1 = resolvePlayer(state, m, "p1");
+                      const p2 = resolvePlayer(state, m, "p2");
+                      const color = m.bracket === "winners" ? "#39ff14" : m.bracket === "losers" ? "#e8001c" : "#f0c000";
+                      return (
+                        <button key={m.id} onClick={() => { setActiveMatchId(m.id); setDrawerOpen(false); }}
+                          className="shrink-0 border px-3 py-2 text-sm text-left hover:opacity-80 transition-opacity"
+                          style={{ borderColor: color, minWidth: 180 }}>
+                          <div className="text-xs mb-1" style={{ color }}>{m.bracket.toUpperCase().replace("-", " ")} · {m.id}</div>
+                          <div className="text-[var(--text)]">{p1?.name ?? "TBD"}</div>
+                          <div className="text-[var(--text-dim)] text-xs">vs</div>
+                          <div className="text-[var(--text)]">{p2?.name ?? "TBD"}</div>
+                        </button>
+                      );
+                    })
+                }
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 px-4 py-3 min-w-[200px]">
+                {standings.length === 0
+                  ? <span className="text-sm text-[var(--text-dim)] italic">No results yet</span>
+                  : standings.map((s, i) => (
+                      <div key={i} className="flex items-center gap-3 text-sm py-0.5">
+                        <span className="text-[var(--text-dim)] w-12 shrink-0">{s.place}</span>
+                        <span className="text-[var(--text)]">{s.player.name}</span>
+                      </div>
+                    ))
+                }
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {lateEntry && (() => {
         const byeSlots = findByeSlots(state);
@@ -309,10 +415,12 @@ export default function BracketPage() {
   );
 }
 
-function MatchCard({ match, state, onOpen, winnerColor, borderColor }: {
+function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, ready }: {
   match: Match; state: BracketState;
   onOpen: (id: string) => void;
   winnerColor: string; borderColor: string;
+  highlight?: boolean;
+  ready?: boolean;
 }) {
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
@@ -321,12 +429,12 @@ function MatchCard({ match, state, onOpen, winnerColor, borderColor }: {
   const p2Wins = match.games?.filter(g => g.winner === "p2").length ?? 0;
 
   return (
-    <div className="relative overflow-hidden bg-[var(--bg-card)] cursor-pointer"
+    <div className={cn("relative overflow-hidden bg-[var(--bg-card)] cursor-pointer", ready && !highlight && "ready-pulse")}
       onClick={() => onOpen(match.id)}
       style={{
         width: MATCH_W, height: MATCH_H,
-        border: `1px solid ${hasResult ? winnerColor : borderColor}`,
-        boxShadow: hasResult ? `0 0 10px ${winnerColor}33` : "none",
+        border: `1px solid ${highlight ? "#fff" : ready ? winnerColor : hasResult ? winnerColor : borderColor}`,
+        boxShadow: highlight ? "0 0 12px #ffffff88" : ready ? `0 0 8px ${winnerColor}55` : hasResult ? `0 0 10px ${winnerColor}33` : "none",
       }}>
       {([p1, p2] as const).map((player, i) => {
         const isWinner = match.winner?.id === player?.id;

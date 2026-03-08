@@ -194,9 +194,17 @@ export default function Home() {
                   <span className="text-xs text-[var(--text-dim)]">
                     {t.state.players.length}P ·{" "}
                     {new Date(t.createdAt).toLocaleDateString()}
-                    {t.state.champion && ` · ★ ${t.state.champion.name}`}
                   </span>
                 </button>
+                {(() => {
+                  const status = t.state.champion ? "complete" : Object.values(t.state.matches).some(m => m.winner) ? "in_progress" : "not_started";
+                  const cfg = {
+                    complete:    { label: "★ COMPLETE",    color: "#f0c000" },
+                    in_progress: { label: "● IN PROGRESS", color: "#39ff14" },
+                    not_started: { label: "○ NOT STARTED", color: "var(--text-dim)" },
+                  }[status];
+                  return <span className="text-xs font-mono shrink-0" style={{ color: cfg.color }}>{cfg.label}</span>;
+                })()}
                 <button
                   onClick={() => setConfirmDelete(t.id)}
                   className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1"

@@ -71,6 +71,12 @@ input:focus, select:focus {
 }
 select option { background: var(--bg); }
 
+@keyframes ready-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.ready-pulse { animation: ready-pulse 2s ease-in-out infinite; }
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--text-dim); }

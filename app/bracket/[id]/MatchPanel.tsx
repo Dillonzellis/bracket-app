@@ -11,10 +11,11 @@ type Props = {
   winnerColor: string;
   onConfirm: (matchId: string, winnerId: string, games: Game[], format: 3 | 5) => void;
   onUndo: (matchId: string) => void;
+  onDQ: (matchId: string, playerId: string) => void;
   onClose: () => void;
 };
 
-export default function MatchPanel({ match, state, defaultFormat, winnerColor, onConfirm, onUndo, onClose }: Props) {
+export default function MatchPanel({ match, state, defaultFormat, winnerColor, onConfirm, onUndo, onDQ, onClose }: Props) {
   const p1 = resolvePlayer(state, match, "p1");
   const p2 = resolvePlayer(state, match, "p2");
   const format: 3 | 5 = match.format ?? defaultFormat;
@@ -75,7 +76,16 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
           </div>
         </div>
 
-        {/* Format toggle — only if match not yet complete */}
+          {!isComplete && p1 && p2 && (
+            <div className="flex gap-2 mt-3">
+              {([p1, p2] as const).map(p => (
+                <button key={p.id} onClick={() => onDQ(match.id, p.id)}
+                  className="flex-1 py-1 text-xs tracking-widest text-[#e8001c] border border-[#e8001c]/40 hover:border-[#e8001c] hover:opacity-80 transition-colors">
+                  DQ {p.name}
+                </button>
+              ))}
+            </div>
+          )}
         {!isComplete && (
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
             <span className="text-sm text-[var(--text-dim)]">FORMAT:</span>
