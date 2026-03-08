@@ -59,9 +59,9 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
   const slots = ["p1", "p2"] as const;
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col justify-end sm:flex-row sm:justify-end" onClick={onClose}>
+    <div className="fixed inset-0 z-40 flex flex-col justify-end sm:flex-row sm:justify-end" onClick={onClose} style={{ background: "rgba(0,0,0,0.6)" }}>
       <div
-        className="relative w-full max-h-[85vh] sm:h-full sm:max-h-full sm:max-w-sm bg-[var(--bg-card)] border-t sm:border-t-0 sm:border-l border-[var(--border)] flex flex-col font-mono overflow-y-auto"
+        className="relative w-full h-[85vh] sm:h-full sm:max-h-full sm:max-w-sm bg-[#2a2040] border-t-2 sm:border-t-0 sm:border-l-2 border-[#6a4fc8] flex flex-col font-mono overflow-y-auto shadow-[-8px_0_40px_rgba(0,0,0,0.8)]"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -160,9 +160,8 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
             })}
           </div>
 
-          {/* Undo last game */}
-          {!isComplete && games.length > 0 && !matchWinner && (
-            <button onClick={removeLastGame}
+          {games.length > 0 && (
+            <button onClick={isComplete ? () => onUndo(match.id) : removeLastGame}
               className="mt-3 text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">
               ← undo last game
             </button>
@@ -187,10 +186,6 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
               <div className="text-sm text-center mb-2" style={{ color: winnerColor }}>
                 {match.winner?.name} wins {match.games ? `${Math.max(...[match.games.filter(g=>g.winner==="p1").length, match.games.filter(g=>g.winner==="p2").length])}–${Math.min(...[match.games.filter(g=>g.winner==="p1").length, match.games.filter(g=>g.winner==="p2").length])}` : ""}
               </div>
-              <button onClick={() => onUndo(match.id)}
-                className="w-full py-2 text-sm tracking-widest text-[#e8001c] border border-[#e8001c] hover:opacity-80 transition-opacity">
-                RESET MATCH
-              </button>
             </>
           ) : (
             <button onClick={handleConfirm}
@@ -239,16 +234,16 @@ function PlayerName({ player, slot, isWinner, winnerColor, canEdit, editingSlot,
 
   return (
     <div className={cn("flex flex-col flex-1 overflow-hidden", isRight && "items-end")}>
-      <span className={cn("text-lg font-bold truncate", isRight && "text-right")}
-        style={{ color: isWinner ? winnerColor : "var(--text)" }}>
+      <span
+        className={cn(
+          "text-lg font-bold truncate",
+          isRight && "text-right",
+          canEdit && player && "cursor-pointer hover:opacity-70 transition-opacity"
+        )}
+        style={{ color: isWinner ? winnerColor : "var(--text)" }}
+        onClick={() => canEdit && player && onStartEdit(slot, player.name)}>
         {player?.name ?? "TBD"}
       </span>
-      {canEdit && player && (
-        <button onClick={() => onStartEdit(slot, player.name)}
-          className="text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors mt-0.5">
-          rename
-        </button>
-      )}
     </div>
   );
 }
