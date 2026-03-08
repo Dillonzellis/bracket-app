@@ -274,7 +274,7 @@ export default function BracketPage() {
             className="text-sm tracking-widest font-mono text-[var(--text)] hover:text-[#39ff14] transition-colors shrink-0">
             ◀ MENU
           </button>
-          <span className="text-base tracking-widest glow text-[var(--text)] cursor-pointer hover:opacity-70 transition-opacity truncate flex-1 min-w-0"
+          <span className="hidden sm:block text-base tracking-widest glow text-[var(--text)] cursor-pointer hover:opacity-70 transition-opacity truncate flex-1 min-w-0"
             title="Click to rename"
             onClick={() => setRenamingName(record.name)}>
             {record.name}
@@ -287,7 +287,7 @@ export default function BracketPage() {
               setRecord(updated);
               saveTournament(updated);
               setRenamingName(null);
-            }} className="flex items-center gap-1 flex-1">
+            }} className="hidden sm:flex items-center gap-1 flex-1">
               <input autoFocus className="px-2 py-1 text-sm font-mono flex-1 min-w-0"
                 value={renamingName} onChange={e => setRenamingName(e.target.value)}
                 onKeyDown={e => e.key === "Escape" && setRenamingName(null)} />
