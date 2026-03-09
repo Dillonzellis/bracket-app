@@ -1,3 +1,4 @@
+import { createClient } from "@/utils/supabase/client";
 import { BracketState } from "./bracket";
 
 export type TournamentRecord = {
@@ -8,33 +9,32 @@ export type TournamentRecord = {
   state: BracketState;
 };
 
-const KEY = "tournaments";
-
-function load(): Record<string, TournamentRecord> {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(localStorage.getItem(KEY) ?? "{}"); } catch { return {}; }
+function toRow(r: TournamentRecord) {
+  return { id: r.id, name: r.name, created_at: r.createdAt, default_format: r.defaultFormat, state: r.state };
 }
 
-function save(data: Record<string, TournamentRecord>) {
-  localStorage.setItem(KEY, JSON.stringify(data));
+function fromRow(row: any): TournamentRecord {
+  return { id: row.id, name: row.name, createdAt: row.created_at, defaultFormat: row.default_format, state: row.state };
 }
 
-export function getTournaments(): TournamentRecord[] {
-  return Object.values(load()).sort((a, b) => b.createdAt - a.createdAt);
+export async function getTournaments(): Promise<TournamentRecord[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from("tournaments").select().order("created_at", { ascending: false });
+  return (data ?? []).map(fromRow);
 }
 
-export function getTournament(id: string): TournamentRecord | null {
-  return load()[id] ?? null;
+export async function getTournament(id: string): Promise<TournamentRecord | null> {
+  const supabase = createClient();
+  const { data } = await supabase.from("tournaments").select().eq("id", id).single();
+  return data ? fromRow(data) : null;
 }
 
-export function saveTournament(record: TournamentRecord): void {
-  const data = load();
-  data[record.id] = record;
-  save(data);
+export async function saveTournament(record: TournamentRecord): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("tournaments").upsert(toRow(record));
 }
 
-export function deleteTournament(id: string): void {
-  const data = load();
-  delete data[id];
-  save(data);
+export async function deleteTournament(id: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from("tournaments").delete().eq("id", id);
 }

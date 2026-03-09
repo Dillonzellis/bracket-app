@@ -93,9 +93,10 @@ export default function BracketPage() {
   const [record, setRecord] = useState<TournamentRecord | null>(null);
 
   useEffect(() => {
-    const t = getTournament(id);
-    if (!t) { router.push("/"); return; }
-    setTimeout(() => setRecord(t), 0);
+    getTournament(id).then(t => {
+      if (!t) { router.push("/"); return; }
+      setRecord(t);
+    });
   }, [id, router]);
 
   useEffect(() => {
@@ -124,7 +125,7 @@ export default function BracketPage() {
     if (!record) return;
     const updated = { ...record, state: newState };
     setRecord(updated);
-    saveTournament(updated);
+    saveTournament(updated); // fire-and-forget
   };
 
   const handleWin = (matchId: string, winnerId: string, games: Game[], format: 3 | 5) => {
@@ -294,7 +295,7 @@ export default function BracketPage() {
               if (!renamingName.trim()) return;
               const updated = { ...record, name: renamingName.trim() };
               setRecord(updated);
-              saveTournament(updated);
+              saveTournament(updated); // fire-and-forget
               setRenamingName(null);
             }} className="hidden sm:flex items-center gap-1 flex-1">
               <input autoFocus className="px-2 py-1 text-sm font-mono flex-1 min-w-0"

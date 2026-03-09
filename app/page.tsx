@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import { Player, generateBracket } from "@/lib/bracket";
 import {
   getTournaments,
@@ -19,9 +21,15 @@ export default function Home() {
   const [tournamentName, setTournamentName] = useState("");
   const [defaultFormat, setDefaultFormat] = useState<3 | 5>(3);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    setTimeout(() => setTournaments(getTournaments()), 0);
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+  }, []);
+
+  useEffect(() => {
+    getTournaments().then(setTournaments);
   }, []);
 
   const addPlayer = () => {
@@ -61,7 +69,14 @@ export default function Home() {
     setSeeds(Object.fromEntries(Array.from({ length: count }, (_, i) => [i, i + 1])));
   };
 
+  const logout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
   const start = () => {
+    if (!user) return router.push("/login");
     const players: Player[] = names
       .map((name, i) => ({ id: `p${i}`, name: name.trim(), seed: seeds[i] }))
       .filter((p) => p.name);
@@ -76,13 +91,11 @@ export default function Home() {
       defaultFormat,
       state: generateBracket(players),
     };
-    saveTournament(record);
-    router.push(`/bracket/${id}`);
+    saveTournament(record).then(() => router.push(`/bracket/${id}`));
   };
 
   const handleDelete = (id: string) => {
-    deleteTournament(id);
-    setTournaments(getTournaments());
+    deleteTournament(id).then(() => getTournaments().then(setTournaments));
     setConfirmDelete(null);
   };
 
@@ -95,6 +108,12 @@ export default function Home() {
         <h1 className="text-5xl md:text-4xl font-bold tracking-widest glow">
           TOURNAMENT
         </h1>
+        <div className="mt-2">
+          {user
+            ? <button onClick={logout} className="text-xs font-mono text-[var(--text-dim)] hover:text-[#e8001c] transition-colors">logout ({user.email})</button>
+            : <button onClick={() => router.push("/login")} className="text-xs font-mono text-[var(--text-dim)] hover:text-[#39ff14] transition-colors">admin login</button>
+          }
+        </div>
         <div className="text-xs md:text-sm tracking-widest mt-1 text-[var(--text-dim)]">
           DOUBLE ELIMINATION BRACKET
         </div>
@@ -131,12 +150,14 @@ export default function Home() {
                   }[status];
                   return <span className="text-xs font-mono shrink-0" style={{ color: cfg.color }}>{cfg.label}</span>;
                 })()}
+                {user && (
                 <button
                   onClick={() => setConfirmDelete(t.id)}
                   className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1"
                 >
                   ✕
                 </button>
+                )}
               </div>
             ))}
           </div>
