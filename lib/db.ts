@@ -9,6 +9,26 @@ export type TournamentRecord = {
   state: BracketState;
 };
 
+const LS_KEY = "tournaments";
+const DEBUG_KEY = "debugMode";
+
+export function isDebugMode() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(DEBUG_KEY) === "true";
+}
+
+export function setDebugMode(val: boolean) {
+  localStorage.setItem(DEBUG_KEY, String(val));
+}
+
+function lsLoad(): Record<string, TournamentRecord> {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) ?? "{}"); } catch { return {}; }
+}
+
+function lsSave(data: Record<string, TournamentRecord>) {
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
+}
+
 function toRow(r: TournamentRecord) {
   return { id: r.id, name: r.name, created_at: r.createdAt, default_format: r.defaultFormat, state: r.state };
 }
@@ -18,23 +38,27 @@ function fromRow(row: any): TournamentRecord {
 }
 
 export async function getTournaments(): Promise<TournamentRecord[]> {
+  if (isDebugMode()) return Object.values(lsLoad()).sort((a, b) => b.createdAt - a.createdAt);
   const supabase = createClient();
   const { data } = await supabase.from("tournaments").select().order("created_at", { ascending: false });
   return (data ?? []).map(fromRow);
 }
 
 export async function getTournament(id: string): Promise<TournamentRecord | null> {
+  if (isDebugMode()) return lsLoad()[id] ?? null;
   const supabase = createClient();
   const { data } = await supabase.from("tournaments").select().eq("id", id).single();
   return data ? fromRow(data) : null;
 }
 
 export async function saveTournament(record: TournamentRecord): Promise<void> {
+  if (isDebugMode()) { const d = lsLoad(); d[record.id] = record; lsSave(d); return; }
   const supabase = createClient();
   await supabase.from("tournaments").upsert(toRow(record));
 }
 
 export async function deleteTournament(id: string): Promise<void> {
+  if (isDebugMode()) { const d = lsLoad(); delete d[id]; lsSave(d); return; }
   const supabase = createClient();
   await supabase.from("tournaments").delete().eq("id", id);
 }

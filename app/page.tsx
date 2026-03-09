@@ -10,6 +10,8 @@ import {
   saveTournament,
   deleteTournament,
   TournamentRecord,
+  isDebugMode,
+  setDebugMode,
 } from "@/lib/db";
 import { cn } from "@/lib/cn";
 
@@ -22,6 +24,17 @@ export default function Home() {
   const [defaultFormat, setDefaultFormat] = useState<3 | 5>(3);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [debugMode, setDebugModeState] = useState(false);
+
+  useEffect(() => { setDebugModeState(isDebugMode()); }, []);
+
+  const toggleDebug = (val: boolean) => {
+    setDebugMode(val);
+    setDebugModeState(val);
+    getTournaments().then(setTournaments);
+  };
+
+  const isAdmin = !!user || debugMode;
 
   useEffect(() => {
     const supabase = createClient();
@@ -76,7 +89,7 @@ export default function Home() {
   };
 
   const start = () => {
-    if (!user) return router.push("/login");
+    if (!isAdmin) return router.push("/login");
     const players: Player[] = names
       .map((name, i) => ({ id: `p${i}`, name: name.trim(), seed: seeds[i] }))
       .filter((p) => p.name);
@@ -111,7 +124,9 @@ export default function Home() {
         <div className="mt-2">
           {user
             ? <button onClick={logout} className="text-xs font-mono text-[var(--text-dim)] hover:text-[#e8001c] transition-colors">logout ({user.email})</button>
-            : <button onClick={() => router.push("/login")} className="text-xs font-mono text-[var(--text-dim)] hover:text-[#39ff14] transition-colors">admin login</button>
+            : debugMode
+              ? <span className="text-xs font-mono text-[#f0c000]">debug mode</span>
+              : <button onClick={() => router.push("/login")} className="text-xs font-mono text-[var(--text-dim)] hover:text-[#39ff14] transition-colors">admin login</button>
           }
         </div>
         <div className="text-xs md:text-sm tracking-widest mt-1 text-[var(--text-dim)]">
@@ -150,7 +165,7 @@ export default function Home() {
                   }[status];
                   return <span className="text-xs font-mono shrink-0" style={{ color: cfg.color }}>{cfg.label}</span>;
                 })()}
-                {user && (
+                {isAdmin && (
                 <button
                   onClick={() => setConfirmDelete(t.id)}
                   className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1"
@@ -267,6 +282,13 @@ export default function Home() {
         >
           ▶ START TOURNAMENT
         </button>
+      </div>
+
+      <div className="mt-10 w-full max-w-md">
+        <label className="flex items-center gap-2 text-xs font-mono text-[var(--text-dim)] cursor-pointer">
+          <input type="checkbox" checked={debugMode} onChange={e => toggleDebug(e.target.checked)} />
+          debug mode (localStorage, no auth)
+        </label>
       </div>
 
       {confirmDelete && (

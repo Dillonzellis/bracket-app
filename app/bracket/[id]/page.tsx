@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
+import { isDebugMode } from "@/lib/db";
 import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, swapPlayers, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
@@ -124,6 +125,7 @@ export default function BracketPage() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
+    if (isDebugMode()) { setIsAdmin(true); return; }
     createClient().auth.getUser().then(({ data }) => setIsAdmin(!!data.user));
   }, []);
 
