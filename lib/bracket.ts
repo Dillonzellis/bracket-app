@@ -311,13 +311,6 @@ export function generateBracket(players: Player[]): BracketState {
 
   const state = { players, matches, winnersRounds, losersRounds, grandFinalsId: gfId, champion: null };
 
-  console.log("[generateBracket] Match wiring:");
-  for (const m of Object.values(matches)) {
-    const fmt = (src: Player | string | null | undefined, loserSrc?: string) =>
-      loserSrc ? `loser(${loserSrc})` : typeof src === "object" ? src?.name ?? "null" : src ?? "null";
-    console.log(`  ${m.id.padEnd(20)} p1: ${fmt(m.p1Source, m.p1SourceLoser).padEnd(25)} p2: ${fmt(m.p2Source, m.p2SourceLoser)}`);
-  }
-
   return state;
 }
 
@@ -327,16 +320,16 @@ export function resolvePlayer(state: BracketState, match: Match, slot: "p1" | "p
 
   if (loserSrc) {
     const resolved = state.matches[loserSrc]?.loser ?? null;
-    if (!resolved) console.log(`[TBD] ${match.id} ${slot} waiting on loser of ${loserSrc} (winner: ${state.matches[loserSrc]?.winner?.name ?? "none"}, loser: ${state.matches[loserSrc]?.loser?.name ?? "none"})`);
+
     return resolved;
   }
   if (src === null || src === undefined) {
-    console.log(`[TBD] ${match.id} ${slot} has null source`);
+
     return null;
   }
   if (typeof src === "object") return src as Player;
   const resolved = state.matches[src]?.winner ?? null;
-  if (!resolved) console.log(`[TBD] ${match.id} ${slot} waiting on winner of ${src} (winner: ${state.matches[src]?.winner?.name ?? "none"})`);
+
   return resolved;
 }
 
@@ -362,40 +355,93 @@ function autoAdvanceByes(state: BracketState) {
 
 export function addPlayerToLosers(state: BracketState, player: Player): BracketState {
   const next = JSON.parse(JSON.stringify(state)) as BracketState;
-  const newPlayer = { ...player, id: `late-${Date.now()}` };
+  const newPlayer = { ...player, id: `late-${Date.now()}-${Math.random().toString(36).slice(2)}` };
   next.players = [...next.players, newPlayer];
 
-  // Find earliest unplayed losers match with a null fixed source (no loser feeding it yet)
-  for (const roundIds of next.losersRounds) {
-    for (const id of roundIds) {
-      const m = next.matches[id];
-      if (m.winner) continue;
-      if (m.p1Source === null && !m.p1SourceLoser) { m.p1Source = newPlayer; return next; }
-      if (m.p2Source === null && !m.p2SourceLoser) { m.p2Source = newPlayer; return next; }
-    }
+  // Find the latest losers round that hasn't started (no winners yet)
+  let insertRoundIdx = -1;
+  for (let i = next.losersRounds.length - 1; i >= 0; i--) {
+    const started = next.losersRounds[i].some(id => next.matches[id].winner);
+    if (!started) insertRoundIdx = i;
+    else break;
   }
+  if (insertRoundIdx === -1) insertRoundIdx = next.losersRounds.length - 1;
 
-  // No open slot — create a new losers R1 match pairing the late entrant against the
-  // loser of the earliest unplayed winners R1 match
-  const firstWR1 = next.winnersRounds[0];
-  const wMatchId = firstWR1?.find(id => !next.matches[id].winner);
-  const newMatchId = `l-late-${Date.now()}`;
+  // Find the most recent completed winners match to use as opponent source
+  const completedWMatch = [...next.winnersRounds].reverse().flat()
+    .find(id => next.matches[id].winner);
+
+  const newMatchId = `l-late-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  console.log(`[lateEntry] ${newPlayer.name} → new match ${newMatchId} in L-R${insertRoundIdx + 1}, vs loser of ${completedWMatch ?? "none (bye)"}`);
+
   next.matches[newMatchId] = {
-    id: newMatchId, round: 0, matchIndex: 0,
+    id: newMatchId, round: insertRoundIdx + 1, matchIndex: next.losersRounds[insertRoundIdx].length,
     p1Source: newPlayer,
     p2Source: null,
-    p2SourceLoser: wMatchId,
+    p2SourceLoser: completedWMatch,
     winner: null, loser: null,
     bracket: "losers",
   };
-  next.losersRounds = [[newMatchId], ...next.losersRounds];
+
+  next.losersRounds[insertRoundIdx] = [...next.losersRounds[insertRoundIdx], newMatchId];
+
+  // Wire winner of new match into the next round.
+  // Try to redirect an existing unoccupied string-source slot first.
+  // If all slots in the next round are taken, create a new consolidation match.
+  const nextRoundIdx = insertRoundIdx + 1;
+  const nextRound = next.losersRounds[nextRoundIdx];
+  let wired = false;
+  if (nextRound) {
+    for (const id of nextRound) {
+      const m = next.matches[id];
+      if (m.winner) continue;
+      if (typeof m.p1Source === "string" && !m.p1Source.startsWith("l-late-") && !m.p1SourceLoser) {
+        console.log(`[lateEntry] wiring ${newMatchId} winner → p1 of ${id}`);
+        m.p1Source = newMatchId; wired = true; break;
+      }
+      if (typeof m.p2Source === "string" && !m.p2Source.startsWith("l-late-") && !m.p2SourceLoser) {
+        console.log(`[lateEntry] wiring ${newMatchId} winner → p2 of ${id}`);
+        m.p2Source = newMatchId; wired = true; break;
+      }
+    }
+  }
+
+  if (!wired && nextRound) {
+    // All next-round slots occupied — pair this new match's winner against the last match
+    // in the next round (which is likely another late-entry match)
+    const lastInNext = nextRound[nextRound.length - 1];
+    const bridgeId = `l-late-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    console.log(`[lateEntry] creating bridge match ${bridgeId} pairing ${newMatchId} vs ${lastInNext}`);
+    // Remove lastInNext from nextRound and replace with bridgeId
+    next.losersRounds[nextRoundIdx] = [...nextRound.slice(0, -1), bridgeId];
+    next.matches[bridgeId] = {
+      id: bridgeId, round: nextRoundIdx + 1, matchIndex: nextRound.length - 1,
+      p1Source: lastInNext,
+      p2Source: newMatchId,
+      winner: null, loser: null,
+      bracket: "losers",
+    };
+    // Re-wire anything that pointed to lastInNext to now point to bridgeId
+    for (const m of Object.values(next.matches)) {
+      if (m.id === bridgeId) continue;
+      if (m.p1Source === lastInNext) m.p1Source = bridgeId;
+      if (m.p2Source === lastInNext) m.p2Source = bridgeId;
+    }
+  }
+
+  // No W opponent available — auto-advance as bye
+  if (!completedWMatch) {
+    next.matches[newMatchId].winner = newPlayer;
+    next.matches[newMatchId].loser = null;
+  }
+
   return next;
 }
 
 export function findByeSlots(state: BracketState): { matchId: string; slot: "p1" | "p2" }[] {
   const results: { matchId: string; slot: "p1" | "p2" }[] = [];
   for (const match of Object.values(state.matches)) {
-    if (match.winner) continue;
+    if (match.winner || match.bracket !== "winners") continue;
     for (const slot of ["p1", "p2"] as const) {
       const src = slot === "p1" ? match.p1Source : match.p2Source;
       const loserSrc = slot === "p1" ? match.p1SourceLoser : match.p2SourceLoser;
@@ -414,8 +460,9 @@ export function addPlayerToSlot(
   const next = JSON.parse(JSON.stringify(state)) as BracketState;
   const match = next.matches[matchId];
   if (!match) return state;
-  const newPlayer = { ...player, id: `late-${Date.now()}` };
+  const newPlayer = { ...player, id: `late-${Date.now()}-${Math.random().toString(36).slice(2)}` };
   next.players = [...next.players, newPlayer];
+  console.log(`[lateEntry] ${newPlayer.name} → bye slot ${slot} in ${matchId}`);
   if (slot === "p1") match.p1Source = newPlayer;
   else match.p2Source = newPlayer;
   return next;
@@ -571,7 +618,7 @@ export function reportResult(state: BracketState, matchId: string, winnerId: str
 
   const p1 = resolvePlayer(next, match, "p1");
   const p2 = resolvePlayer(next, match, "p2");
-  console.log(`[reportResult] ${matchId} — p1: ${p1?.name ?? "TBD"}, p2: ${p2?.name ?? "TBD"}, picking winner: ${winnerId}`);
+
   const winner = p1?.id === winnerId ? p1 : p2?.id === winnerId ? p2 : null;
   if (!winner) {
     console.warn(`[reportResult] winner not found for id ${winnerId} in match ${matchId}`);
@@ -580,7 +627,7 @@ export function reportResult(state: BracketState, matchId: string, winnerId: str
 
   match.winner = winner;
   match.loser = winner.id === p1?.id ? p2 ?? null : p1 ?? null;
-  console.log(`[reportResult] ${matchId} → winner: ${match.winner.name}, loser: ${match.loser?.name ?? "none"}`);
+
 
   if (match.bracket === "grand-finals") next.champion = winner;
 
