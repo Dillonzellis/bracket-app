@@ -11,7 +11,7 @@ type Props = {
   defaultFormat: 3 | 5;
   winnerColor: string;
   onConfirm: (matchId: string, winnerId: string, games: Game[], format: 3 | 5) => void;
-  onUndo: (matchId: string) => void;
+  onUndo?: (matchId: string) => void;
   onDQ: (matchId: string, playerId: string) => void;
   onRename: (matchId: string, slot: "p1" | "p2", name: string) => void;
   onClose: () => void;
@@ -160,8 +160,8 @@ export default function MatchPanel({ match, state, defaultFormat, winnerColor, o
             })}
           </div>
 
-          {games.length > 0 && (
-            <button onClick={isComplete ? () => onUndo(match.id) : removeLastGame}
+          {games.length > 0 && (onUndo || !isComplete) && (
+            <button onClick={isComplete ? () => onUndo!(match.id) : removeLastGame}
               className="mt-3 text-xs text-[var(--text-dim)] hover:text-[var(--text)] transition-colors">
               ← undo last game
             </button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, swapPlayers, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
@@ -120,6 +121,11 @@ export default function BracketPage() {
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    createClient().auth.getUser().then(({ data }) => setIsAdmin(!!data.user));
+  }, []);
 
   const update = (newState: BracketState) => {
     if (!record) return;
@@ -325,19 +331,23 @@ export default function BracketPage() {
             placeholder="SEARCH…"
             className="flex-1 min-w-0 px-2 py-1 text-sm font-mono"
           />
-          <button onClick={() => setLateEntry(true)}
-            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
-            + LATE ENTRY
-          </button>
-          <button onClick={() => { setEditMode(m => !m); setEditMatchId(null); setMoveFrom(null); }}
-            className={cn(
-              "text-xs tracking-widest font-mono transition-colors border px-2 h-8 shrink-0",
-              editMode
-                ? "border-[#f0c000] text-[#f0c000]"
-                : "border-[var(--border)] text-[var(--text)] hover:border-[#f0c000] hover:text-[#f0c000]"
-            )}>
-            ✎ EDIT
-          </button>
+          {isAdmin && (
+            <button onClick={() => setLateEntry(true)}
+              className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0">
+              + LATE ENTRY
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => { setEditMode(m => !m); setEditMatchId(null); setMoveFrom(null); }}
+              className={cn(
+                "text-xs tracking-widest font-mono transition-colors border px-2 h-8 shrink-0",
+                editMode
+                  ? "border-[#f0c000] text-[#f0c000]"
+                  : "border-[var(--border)] text-[var(--text)] hover:border-[#f0c000] hover:text-[#f0c000]"
+              )}>
+              ✎ EDIT
+            </button>
+          )}
         </div>
       </div>
 
@@ -456,7 +466,7 @@ export default function BracketPage() {
             defaultFormat={record.defaultFormat ?? 3}
             winnerColor={wc}
             onConfirm={handleWin}
-            onUndo={handleUndo}
+            onUndo={isAdmin ? handleUndo : undefined}
             onDQ={handleDQ}
             onRename={(matchId, slot, name) => update(renamePlayerInMatch(state, matchId, slot, name))}
             onClose={() => setActiveMatchId(null)}
