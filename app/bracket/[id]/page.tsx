@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { isDebugMode } from "@/lib/db";
 import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
@@ -108,33 +108,22 @@ export default function BracketPage() {
   const [drawerTab, setDrawerTab] = useState<"queue" | "standings">("queue");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(
-    () => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("matchId") : null
-  );
+  const searchParams = useSearchParams();
+  const showResultsFromHome = useRef(searchParams.get("results") === "1").current;
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(searchParams.get("matchId"));
 
   useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("matchId")) {
+    if (searchParams.get("matchId") || searchParams.get("results")) {
       router.replace(window.location.pathname);
     }
-  }, [router]);
+  }, [router, searchParams]);
   const [editMode, setEditMode] = useState(false);
   const [editMatchId, setEditMatchId] = useState<string | null>(null);
   const [moveFrom, setMoveFrom] = useState<{ matchId: string; slot: "p1" | "p2" } | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
-  const [showResults, setShowResults] = useState(false);
-  const autoShownKey = `results-auto-shown-${id}`;
-
-  useEffect(() => {
-    if (!record?.state.champion) return;
-    if (localStorage.getItem(autoShownKey)) return;
-    const t = setTimeout(() => {
-      localStorage.setItem(autoShownKey, "1");
-      setShowResults(true);
-    }, 3000);
-    return () => clearTimeout(t);
-  }, [autoShownKey, record?.state.champion?.id]);
+  const [showResults, setShowResults] = useState(showResultsFromHome);
 
   const [isAdmin, setIsAdmin] = useState(() => isDebugMode());
 
@@ -194,7 +183,7 @@ export default function BracketPage() {
     setLateName(""); setLateSlot(""); setLateEntry(false);
   };
 
-  if (!record) return null;
+  if (!record) return showResultsFromHome ? <div className="fixed inset-0" style={{ background: "#050810", zIndex: 50 }} /> : null;
 
   const state = record.state;
   const gf = state.matches[state.grandFinalsId];
@@ -641,6 +630,7 @@ export default function BracketPage() {
             first={{ name: p1.name }}
             second={{ name: p2.name }}
             third={{ name: p3.name }}
+            initialStage={showResultsFromHome ? 4 : undefined}
             onClose={() => setShowResults(false)}
           />
         );

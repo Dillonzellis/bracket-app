@@ -8,6 +8,7 @@ type Props = {
   first: PodiumPlayer;
   second: PodiumPlayer;
   third: PodiumPlayer;
+  initialStage?: number;
   onClose: () => void;
 };
 
@@ -85,11 +86,12 @@ const PLACEMENTS = [
   },
 ];
 
-export default function ResultsScreen({ first, second, third, onClose }: Props) {
+export default function ResultsScreen({ first, second, third, initialStage, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stage, setStage] = useState(0);
+  const [stage, setStage] = useState(initialStage ?? 0);
 
   useEffect(() => {
+    if (initialStage) return; // skip animation if starting at a specific stage
     let t: ReturnType<typeof setTimeout>;
     const advance = (s: number) => {
       t = setTimeout(() => { setStage(s); if (s < 4) advance(s + 1); }, STAGE_DELAYS[s - 1]);
@@ -99,6 +101,15 @@ export default function ResultsScreen({ first, second, third, onClose }: Props) 
   }, []);
 
   useConfetti(canvasRef, stage >= 3);
+
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
 
   const players: Record<string, PodiumPlayer> = { first, second, third };
   const split = stage >= 4;
@@ -112,17 +123,35 @@ export default function ResultsScreen({ first, second, third, onClose }: Props) 
         const player = players[key];
         const visible = stage >= visibleAt;
 
-        // In split mode: panels are absolute, each 33.33% wide, positioned side by side
-        // In stacked mode: panels are absolute inset-0 (full screen), stacked by zIndex
+        // Mobile split: 1st = full screen, 2nd/3rd = small bottom cards
+        // Desktop split: 3 equal columns side by side
+        const mobileSplitStyle = (() => {
+          if (!split || !isMobile) return {};
+          if (key === "first")  return { left: 0, top: 0, width: "100%", bottom: "192px", zIndex: 1 };
+          if (key === "second") return { left: "50%", bottom: 0, top: "auto", width: "50%", height: "192px", zIndex: 2 };
+          if (key === "third")  return { left: 0,     bottom: 0, top: "auto", width: "50%", height: "192px", zIndex: 2 };
+          return {};
+        })();
+
+        const desktopSplitStyle = split && !isMobile ? {
+          zIndex: 1, left: splitLeft, width: "33.333%",
+        } : {};
+
+        const baseStyle = !split ? {
+          zIndex: visibleAt, left: 0, width: "100%",
+        } : {};
+
+        const isSmallCard = split && isMobile && key !== "first";
+
         return (
           <div
             key={key}
             className="absolute top-0 bottom-0 overflow-hidden"
             style={{
-              zIndex: split ? 1 : visibleAt,
-              left: split ? splitLeft : 0,
-              width: split ? "33.333%" : "100%",
-              transition: "transform 0.75s cubic-bezier(0.22,1,0.36,1), left 0.8s cubic-bezier(0.22,1,0.36,1), width 0.8s cubic-bezier(0.22,1,0.36,1)",
+              ...baseStyle,
+              ...desktopSplitStyle,
+              ...mobileSplitStyle,
+              transition: "transform 0.75s cubic-bezier(0.22,1,0.36,1), left 0.8s cubic-bezier(0.22,1,0.36,1), width 0.8s cubic-bezier(0.22,1,0.36,1), height 0.8s cubic-bezier(0.22,1,0.36,1), bottom 0.8s cubic-bezier(0.22,1,0.36,1)",
               transform: visible ? "translate(0,0)" : enterFrom,
             }}
           >
@@ -137,25 +166,30 @@ export default function ResultsScreen({ first, second, third, onClose }: Props) 
             ) : (
               <div className={`absolute inset-0 flex items-center justify-center char-float-${i + 1}`}
                 style={{ background: `linear-gradient(160deg, ${color}18 0%, #050810 100%)`, borderLeft: `2px dashed ${color}44`, borderRight: `2px dashed ${color}44` }}>
-                <div className="flex flex-col items-center gap-3" style={{ color, opacity: 0.5 }}>
-                  <div style={{ fontSize: 48 }}>👤</div>
-                  <div style={{ fontSize: 11, letterSpacing: "0.2em", textAlign: "center" }}>CHARACTER<br/>IMAGE HERE</div>
-                </div>
+                {!isSmallCard && (
+                  <div className="flex flex-col items-center gap-3" style={{ color, opacity: 0.5 }}>
+                    <div style={{ fontSize: 48 }}>👤</div>
+                    <div style={{ fontSize: 11, letterSpacing: "0.2em", textAlign: "center" }}>CHARACTER<br/>IMAGE HERE</div>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Bottom gradient */}
-            <div className="absolute inset-x-0 bottom-0 pointer-events-none"
-              style={{ height: "45%", background: "linear-gradient(to top, #050810f0 0%, transparent 100%)" }} />
+            {!isSmallCard && (
+              <div className="absolute inset-x-0 bottom-0 pointer-events-none"
+                style={{ height: "45%", background: "linear-gradient(to top, #050810f0 0%, transparent 100%)" }} />
+            )}
 
             {/* Placement banner */}
-            <div className="absolute bottom-0 left-0 p-4 sm:p-8">
-              <div className="text-xs tracking-[0.3em] mb-1" style={{ color }}>{label}</div>
+            <div className={`absolute ${isSmallCard ? "inset-0 flex flex-col justify-center px-3" : "bottom-0 left-0 p-4 sm:p-8"}`}
+              style={isSmallCard ? { background: `linear-gradient(160deg, ${color}18 0%, #050810ee 100%)`, borderTop: `1px solid ${color}66` } : {}}>
+              <div className="text-xs tracking-[0.3em] mb-0.5" style={{ color }}>{label}</div>
               <div className="font-bold tracking-widest"
                 style={{
                   color,
                   textShadow: `0 0 16px ${color}, 0 0 40px ${color}66`,
-                  fontSize: split ? "clamp(0.9rem, 2vw, 1.5rem)" : "clamp(1.5rem, 5vw, 3.5rem)",
+                  fontSize: isSmallCard ? "0.85rem" : split ? "clamp(0.9rem, 2vw, 1.5rem)" : "clamp(1.5rem, 5vw, 3.5rem)",
                   transition: "font-size 0.8s ease",
                 }}>
                 {player.name}
@@ -163,9 +197,14 @@ export default function ResultsScreen({ first, second, third, onClose }: Props) 
             </div>
 
             {/* Divider line between panels in split mode */}
-            {split && splitLeft !== "66.666%" && (
+            {split && !isMobile && splitLeft !== "66.666%" && (
               <div className="absolute top-0 bottom-0 right-0 pointer-events-none"
                 style={{ width: 2, background: color, boxShadow: `0 0 12px 2px ${color}`, opacity: 0.5 }} />
+            )}
+            {/* Divider between small cards on mobile */}
+            {isSmallCard && key === "second" && (
+              <div className="absolute top-0 bottom-0 left-0 pointer-events-none"
+                style={{ width: 1, background: color, opacity: 0.4 }} />
             )}
           </div>
         );
@@ -182,12 +221,13 @@ export default function ResultsScreen({ first, second, third, onClose }: Props) 
       </div>
 
       {/* Back button */}
-      <div className="absolute bottom-6 right-6"
+      <div className="absolute top-6 left-6"
         style={{ zIndex: 20, transition: "opacity 0.8s ease", opacity: stage >= 3 ? 1 : 0 }}>
         <button onClick={onClose}
-          className="px-6 py-2 text-sm tracking-widest border border-[var(--border)] text-[var(--text-dim)] hover:border-[#39ff14] hover:text-[#39ff14] transition-colors"
+          className="px-2 py-1 sm:px-6 sm:py-2 text-sm sm:text-sm tracking-widest border border-[var(--border)] text-[var(--text-dim)] hover:border-[#39ff14] hover:text-[#39ff14] transition-colors"
           style={{ background: "#050810cc" }}>
-          ◀ BACK TO BRACKET
+          <span className="sm:hidden">◀</span>
+          <span className="hidden sm:inline">◀ BACK TO BRACKET</span>
         </button>
       </div>
     </div>

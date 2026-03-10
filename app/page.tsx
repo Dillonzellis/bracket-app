@@ -25,9 +25,8 @@ export default function Home() {
   const [defaultFormat, setDefaultFormat] = useState<3 | 5>(3);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
-  const [debugMode, setDebugModeState] = useState(false);
-
-  useEffect(() => { setDebugModeState(isDebugMode()); }, []);
+  const [debugMode, setDebugModeState] = useState(() => isDebugMode());
+  const [loadingTournaments, setLoadingTournaments] = useState(true);
 
   const toggleDebug = (val: boolean) => {
     setDebugMode(val);
@@ -43,7 +42,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    getTournaments().then(setTournaments);
+    getTournaments().then((t) => { setTournaments(t); setLoadingTournaments(false); });
   }, []);
 
   const addPlayer = () => {
@@ -136,27 +135,30 @@ export default function Home() {
       </div>
 
       {/* Past tournaments */}
-      {tournaments.length > 0 && (
+      {loadingTournaments ? (
+        <div className="w-full max-w-md mb-8">
+          <div className="text-sm mb-2 text-[var(--text-dim)]">&gt; TOURNAMENTS</div>
+          <div className="text-sm font-mono text-[var(--text-dim)] animate-pulse">loading...</div>
+        </div>
+      ) : tournaments.length > 0 && (
         <div className="w-full max-w-md mb-8">
           <div className="text-sm mb-2 text-[var(--text-dim)]">
             &gt; TOURNAMENTS
           </div>
           <div className="space-y-1">
             {tournaments.map((t) => (
-              <div
+              <Link
                 key={t.id}
-                className="flex items-center gap-2 border border-[var(--border)] px-3 py-2"
+                href={t.state.champion ? `/bracket/${t.id}?results=1` : `/bracket/${t.id}`}
+                className="flex items-center gap-2 border border-[var(--border)] px-3 py-2 hover:border-[var(--text)] transition-colors"
               >
-                <Link
-                  href={`/bracket/${t.id}`}
-                  className="flex-1 text-left font-mono text-base text-[var(--text)] hover:text-[var(--text)] transition-colors"
-                >
+                <div className="flex-1 font-mono text-base text-[var(--text)]">
                   <span className="block">{t.name}</span>
                   <span className="text-xs text-[var(--text-dim)]">
                     {t.state.players.length}P ·{" "}
                     {new Date(t.createdAt).toLocaleDateString()}
                   </span>
-                </Link>
+                </div>
                 {(() => {
                   const status = t.state.champion ? "complete" : Object.values(t.state.matches).some(m => m.winner) ? "in_progress" : "not_started";
                   const cfg = {
@@ -168,13 +170,13 @@ export default function Home() {
                 })()}
                 {isAdmin && (
                 <button
-                  onClick={() => setConfirmDelete(t.id)}
-                  className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1"
+                  onClick={(e) => { e.preventDefault(); setConfirmDelete(t.id); }}
+                  className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1 cursor-pointer"
                 >
                   ✕
                 </button>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -286,7 +288,8 @@ export default function Home() {
         </button>
       </div>
       </> : (
-        <div className="w-full max-w-md">
+        <div className="w-full max-w-md flex flex-col items-center gap-4">
+          <img src="/melee-qr-bracket-300px.png" alt="QR Code" className="w-64 h-64 mb-16" />
           <button
             onClick={() => router.push("/login")}
             className="w-full py-3 text-base font-bold tracking-widest font-mono border border-[#39ff14] text-[#39ff14] hover:bg-[#39ff1415] transition-colors"
@@ -296,7 +299,7 @@ export default function Home() {
         </div>
       )}
 
-      <div className="mt-10 w-full max-w-md">
+      <div className="mt-4 w-full max-w-md">
         <label className="flex items-center gap-2 text-xs font-mono text-[var(--text-dim)] cursor-pointer">
           <input type="checkbox" checked={debugMode} onChange={e => toggleDebug(e.target.checked)} />
           debug mode (localStorage, no auth)

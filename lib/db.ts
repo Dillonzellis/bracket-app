@@ -9,8 +9,8 @@ export type TournamentRecord = {
   state: BracketState;
 };
 
-const LS_KEY = "tournaments";
-const DEBUG_KEY = "debugMode";
+const LS_KEY = "ssbm_bracket_tournaments";
+const DEBUG_KEY = "ssbm_bracket_debugMode";
 
 export function isDebugMode() {
   if (typeof window === "undefined") return false;
