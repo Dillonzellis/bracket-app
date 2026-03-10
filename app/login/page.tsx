@@ -22,6 +22,10 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4">
       <form onSubmit={login} className="w-full max-w-sm space-y-3 font-mono">
+        <button type="button" onClick={() => router.push("/")}
+          className="text-sm font-mono text-[var(--text-dim)] hover:text-[#39ff14] transition-colors mb-2">
+          ◀ BACK
+        </button>
         <div className="text-lg tracking-widest font-bold text-[var(--text)] mb-6">⚡ ADMIN LOGIN</div>
         <input className="w-full px-2 py-2 text-base" placeholder="Email"
           type="email" value={email} onChange={e => setEmail(e.target.value)} required />
