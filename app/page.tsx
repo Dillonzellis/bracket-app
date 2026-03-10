@@ -179,6 +179,7 @@ export default function Home() {
         </div>
       )}
 
+      {isAdmin ? <>
       {/* New tournament */}
       <div className="w-full max-w-md mb-5">
         <div className="text-sm mb-2 text-[var(--text-dim)]">
@@ -283,6 +284,16 @@ export default function Home() {
           ▶ START TOURNAMENT
         </button>
       </div>
+      </> : (
+        <div className="w-full max-w-md">
+          <button
+            onClick={() => router.push("/login")}
+            className="w-full py-3 text-base font-bold tracking-widest font-mono border border-[#39ff14] text-[#39ff14] hover:bg-[#39ff1415] transition-colors"
+          >
+            ▶ LOGIN TO CREATE TOURNAMENT
+          </button>
+        </div>
+      )}
 
       <div className="mt-10 w-full max-w-md">
         <label className="flex items-center gap-2 text-xs font-mono text-[var(--text-dim)] cursor-pointer">
