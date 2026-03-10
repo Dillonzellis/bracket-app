@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { Player, generateBracket } from "@/lib/bracket";
@@ -146,8 +147,8 @@ export default function Home() {
                 key={t.id}
                 className="flex items-center gap-2 border border-[var(--border)] px-3 py-2"
               >
-                <button
-                  onClick={() => router.push(`/bracket/${t.id}`)}
+                <Link
+                  href={`/bracket/${t.id}`}
                   className="flex-1 text-left font-mono text-base text-[var(--text)] hover:text-[var(--text)] transition-colors"
                 >
                   <span className="block">{t.name}</span>
@@ -155,7 +156,7 @@ export default function Home() {
                     {t.state.players.length}P ·{" "}
                     {new Date(t.createdAt).toLocaleDateString()}
                   </span>
-                </button>
+                </Link>
                 {(() => {
                   const status = t.state.champion ? "complete" : Object.values(t.state.matches).some(m => m.winner) ? "in_progress" : "not_started";
                   const cfg = {

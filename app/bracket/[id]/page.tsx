@@ -10,8 +10,8 @@ import { cn } from "@/lib/cn";
 import { Suspense } from "react";
 import MatchPanel from "./MatchPanel";
 
-const MATCH_W = 280;
-const MATCH_H = 120;
+const MATCH_W = 240;
+const MATCH_H = 72;
 const COL_GAP = 72;
 const SECTION_GAP = 96;
 const L_SUB_GAP = 32; // gap between drop and consolidation sub-rounds within a losers column
@@ -700,7 +700,7 @@ function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, 
             }}
           >
             <span className="flex items-center overflow-hidden max-w-50">
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
                 {player ? player.name : <span className="text-(--text-dim) italic">-- TBD --</span>}
               </span>
               {player?.seed && <SeedBadge seed={player.seed} />}

@@ -4,13 +4,13 @@ import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 
-const STARTERS = ["Battlefield", "Final Destination", "Pokémon Stadium", "Fountain of Dreams", "Yoshi's Story"];
-const COUNTERPICKS = ["Dream Land 64", "Yoshi's Island Melee"];
+const STARTERS = ["Battlefield", "Final Destination", "Fountain of Dreams", "Yoshi's Story", "Dream Land 64"];
+const COUNTERPICKS = ["Pokémon Stadium"];
 const ALL_STAGES = [...STARTERS, ...COUNTERPICKS];
 
 type Phase =
   | { type: "stock_roll"; stocks: (1 | 2 | null)[]; running: boolean; winner: 1 | 2 | null; tie: boolean }
-  | { type: "g1_strike"; turn: 1 | 2; bansLeft: number; banned: string[] }
+  | { type: "g1_strike"; striker: 1 | 2; step: 0 | 1 | 2; banned: string[] }
   | { type: "g1_result"; stage: string }
   | { type: "cp_ban"; loser: 1 | 2; bansLeft: number; banned: string[] }
   | { type: "cp_pick"; winner: 1 | 2; available: string[] }
@@ -269,7 +269,7 @@ function StrikePage() {
   const p2Name = params.get("p2") || "Player 2";
   const returnTo = params.get("returnTo") ?? null;
 
-  const cpBans = 2;
+  const cpBans = format === 3 ? 1 : 0;
 
   const [phase, setPhase] = useState<Phase>({ type: "stock_roll", stocks: [1, 1, 2, 2], running: false, winner: null, tie: false });
   const [games, setGames] = useState<GameRecord[]>([]);
@@ -303,7 +303,7 @@ function StrikePage() {
   }
 
   function startStriking(first: 1 | 2) {
-    setPhase({ type: "g1_strike", turn: first, bansLeft: 2, banned: [] });
+    setPhase({ type: "g1_strike", striker: first, step: 0, banned: [] });
   }
 
   const p1Wins = games.filter(g => g.winner === 1).length;
@@ -313,25 +313,31 @@ function StrikePage() {
 
   function playerName(n: 1 | 2) { return n === 1 ? p1Name : p2Name; }
 
+  // G1 strike pattern: step 0 = striker bans 1, step 1 = other bans 2 (two clicks), step 2 = striker bans 1 → done
   function banStage(stage: string) {
     if (phase.type !== "g1_strike" && phase.type !== "cp_ban") return;
     const newBanned = [...phase.banned, stage];
-    const newBansLeft = phase.bansLeft - 1;
 
     if (phase.type === "g1_strike") {
-      if (newBansLeft > 0) {
-        // Same player still has bans
-        setPhase({ type: "g1_strike", turn: phase.turn, bansLeft: newBansLeft, banned: newBanned });
-      } else if (phase.turn === 1) {
-        // P1 done banning 2, now P2 bans 2
-        setPhase({ type: "g1_strike", turn: 2, bansLeft: 2, banned: newBanned });
+      const { striker, step } = phase;
+      const other: 1 | 2 = striker === 1 ? 2 : 1;
+      if (step === 0) {
+        // striker just banned 1, now other bans 2 (step 1, need 2 bans)
+        setPhase({ type: "g1_strike", striker, step: 1, banned: newBanned });
+      } else if (step === 1 && newBanned.length < 3) {
+        // other still has 1 more ban
+        setPhase({ type: "g1_strike", striker, step: 1, banned: newBanned });
+      } else if (step === 1) {
+        // other done with 2 bans, back to striker for final ban (step 2)
+        setPhase({ type: "g1_strike", striker, step: 2, banned: newBanned });
       } else {
-        // P2 done, 1 stage remains
+        // step 2: striker's final ban, 1 stage remains
         const remaining = STARTERS.filter(s => !newBanned.includes(s));
         setPhase({ type: "g1_result", stage: remaining[0] });
       }
     } else {
       // cp_ban
+      const newBansLeft = phase.bansLeft - 1;
       if (newBansLeft > 0) {
         setPhase({ ...phase, bansLeft: newBansLeft, banned: newBanned });
       } else {
@@ -358,8 +364,13 @@ function StrikePage() {
       setPhase({ type: "cp_result", stage }); // stay on result, matchOver will show winner
       return;
     }
-    // Start counterpick: loser bans
-    setPhase({ type: "cp_ban", loser: winner === 1 ? 2 : 1, bansLeft: cpBans, banned: [] });
+    // Start counterpick: if Bo5 no bans, go straight to pick
+    const loser: 1 | 2 = winner === 1 ? 2 : 1;
+    if (cpBans === 0) {
+      setPhase({ type: "cp_pick", winner: loser, available: ALL_STAGES });
+    } else {
+      setPhase({ type: "cp_ban", loser, bansLeft: cpBans, banned: [] });
+    }
   }
 
   function reset() {
@@ -370,8 +381,12 @@ function StrikePage() {
 
   const banned = (phase.type === "g1_strike" || phase.type === "cp_ban") ? phase.banned : [];
   const available = phase.type === "cp_pick" ? phase.available : null;
+  // During g1_strike: step 0 or 2 = striker acts, step 1 = other acts
+  const g1ActivePlayer: 1 | 2 | null = phase.type === "g1_strike"
+    ? (phase.step === 1 ? (phase.striker === 1 ? 2 : 1) : phase.striker)
+    : null;
   const activePlayer: 1 | 2 | null =
-    phase.type === "g1_strike" ? phase.turn :
+    phase.type === "g1_strike" ? g1ActivePlayer :
     phase.type === "cp_ban" ? phase.loser :
     phase.type === "cp_pick" ? phase.winner : null;
 
@@ -500,7 +515,11 @@ function StrikePage() {
             {/* Instruction */}
             <div className="text-sm mb-3 tracking-widest font-bold"
               style={{ color: activePlayer ? playerColor(activePlayer) : "var(--text-dim)" }}>
-              {phase.type === "g1_strike" && `${playerName(phase.turn)} BANS ${phase.bansLeft} STAGE${phase.bansLeft > 1 ? "S" : ""}`}
+              {phase.type === "g1_strike" && (() => {
+                const actor = phase.step === 1 ? (phase.striker === 1 ? 2 : 1) : phase.striker;
+                const bansLeft = phase.step === 0 ? 1 : phase.step === 1 ? (3 - phase.banned.length) : 1;
+                return `${playerName(actor)} BANS ${bansLeft} STAGE${bansLeft > 1 ? "S" : ""}`;
+              })()}
               {phase.type === "g1_result" && `GAME 1 — PLAY ON:`}
               {phase.type === "cp_ban" && `${playerName(phase.loser)} BANS ${phase.bansLeft} STAGE${phase.bansLeft > 1 ? "S" : ""}`}
               {phase.type === "cp_pick" && `${playerName(phase.winner)} PICKS STAGE`}
@@ -533,8 +552,12 @@ function StrikePage() {
                   const isBanned = banned.includes(stage);
                   const isAvailable = available ? available.includes(stage) : !isBanned;
                   const isStarter = STARTERS.includes(stage);
+                  // Dave's Stupid Rule: picker can't pick a stage they already won on
+                  const pickerWonHere = phase.type === "cp_pick" &&
+                    games.some(g => g.stage === stage && g.winner === phase.winner);
                   return (
-                    <button key={stage}
+                    <div key={stage}>
+                    <button
                       disabled={isBanned || (available !== null && !isAvailable)}
                       onClick={() => phase.type === "cp_pick" ? pickStage(stage) : banStage(stage)}
                       style={(!isBanned && isAvailable && activePlayer) ? {
@@ -552,6 +575,10 @@ function StrikePage() {
                       <span>{stage}</span>
                       <span className="text-xs text-[var(--text-dim)]">{isStarter ? "STARTER" : "CP"}</span>
                     </button>
+                    {pickerWonHere && (
+                      <div className="text-xs text-[#f0c000] px-1 pt-0.5">⚠ Dave's Stupid Rule — {playerName(phase.winner)} already won on {stage}</div>
+                    )}
+                    </div>
                   );
                 })}
               </div>
