@@ -77,6 +77,16 @@ select option { background: var(--bg); }
 }
 .ready-pulse { animation: ready-pulse 2s ease-in-out infinite; }
 
+@keyframes char-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  30%       { transform: translateY(-10px) rotate(0.6deg); }
+  70%       { transform: translateY(-6px) rotate(-0.4deg); }
+}
+.char-float-1 { animation: char-float 6s ease-in-out infinite; }
+.char-float-2 { animation: char-float 7.5s ease-in-out infinite 1.2s; }
+.char-float-3 { animation: char-float 5.5s ease-in-out infinite 2.8s; }
+
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--text-dim); }

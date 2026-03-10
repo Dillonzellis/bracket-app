@@ -1,0 +1,195 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+type PodiumPlayer = { name: string; character?: string };
+
+type Props = {
+  first: PodiumPlayer;
+  second: PodiumPlayer;
+  third: PodiumPlayer;
+  onClose: () => void;
+};
+
+// Stage 0=dark, 1=3rd in, 2=2nd in, 3=1st in+confetti, 4=split to thirds
+const STAGE_DELAYS = [900, 1200, 1200, 1800];
+
+const CONFETTI_COLORS = ["#f0c000", "#39ff14", "#e8001c", "#c084fc", "#ffffff"];
+
+function useConfetti(canvasRef: React.RefObject<HTMLCanvasElement | null>, active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const pieces = Array.from({ length: 150 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      w: 6 + Math.random() * 8,
+      h: 10 + Math.random() * 6,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      speed: 2 + Math.random() * 3,
+      angle: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 0.15,
+      drift: (Math.random() - 0.5) * 1.5,
+    }));
+    let raf: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const p of pieces) {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+        p.y += p.speed; p.x += p.drift; p.angle += p.spin;
+        if (p.y > canvas.height) { p.y = -20; p.x = Math.random() * canvas.width; }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, [active, canvasRef]);
+}
+
+// In stage 4, panels are laid out left→right as: 3rd | 2nd | 1st
+// Each panel needs to know its final left offset (0%, 33.33%, 66.66%)
+const PLACEMENTS = [
+  {
+    key: "third"  as const,
+    label: "3RD PLACE",
+    color: "#cd7f32",
+    enterFrom: "translateX(-100%)",
+    visibleAt: 1,
+    splitLeft: "0%",
+  },
+  {
+    key: "second" as const,
+    label: "2ND PLACE",
+    color: "#c0c0c0",
+    enterFrom: "translateX(100%)",
+    visibleAt: 2,
+    splitLeft: "66.666%",
+  },
+  {
+    key: "first"  as const,
+    label: "1ST PLACE",
+    color: "#f0c000",
+    enterFrom: "translateY(-100%)",
+    visibleAt: 3,
+    splitLeft: "33.333%",
+  },
+];
+
+export default function ResultsScreen({ first, second, third, onClose }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const advance = (s: number) => {
+      t = setTimeout(() => { setStage(s); if (s < 4) advance(s + 1); }, STAGE_DELAYS[s - 1]);
+    };
+    advance(1);
+    return () => clearTimeout(t);
+  }, []);
+
+  useConfetti(canvasRef, stage >= 3);
+
+  const players: Record<string, PodiumPlayer> = { first, second, third };
+  const split = stage >= 4;
+
+  return (
+    <div className="fixed inset-0 z-50 font-mono overflow-hidden" style={{ background: "#050810" }}>
+
+      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }} />
+
+      {PLACEMENTS.map(({ key, label, color, enterFrom, visibleAt, splitLeft }, i) => {
+        const player = players[key];
+        const visible = stage >= visibleAt;
+
+        // In split mode: panels are absolute, each 33.33% wide, positioned side by side
+        // In stacked mode: panels are absolute inset-0 (full screen), stacked by zIndex
+        return (
+          <div
+            key={key}
+            className="absolute top-0 bottom-0 overflow-hidden"
+            style={{
+              zIndex: split ? 1 : visibleAt,
+              left: split ? splitLeft : 0,
+              width: split ? "33.333%" : "100%",
+              transition: "transform 0.75s cubic-bezier(0.22,1,0.36,1), left 0.8s cubic-bezier(0.22,1,0.36,1), width 0.8s cubic-bezier(0.22,1,0.36,1)",
+              transform: visible ? "translate(0,0)" : enterFrom,
+            }}
+          >
+            {/* Character image / placeholder */}
+            {player.character ? (
+              <img
+                src={`/characters/${player.character}`}
+                alt={player.name}
+                className={`absolute inset-0 w-full h-full object-cover object-top char-float-${i + 1}`}
+                style={{ filter: `brightness(0.85)` }}
+              />
+            ) : (
+              <div className={`absolute inset-0 flex items-center justify-center char-float-${i + 1}`}
+                style={{ background: `linear-gradient(160deg, ${color}18 0%, #050810 100%)`, borderLeft: `2px dashed ${color}44`, borderRight: `2px dashed ${color}44` }}>
+                <div className="flex flex-col items-center gap-3" style={{ color, opacity: 0.5 }}>
+                  <div style={{ fontSize: 48 }}>👤</div>
+                  <div style={{ fontSize: 11, letterSpacing: "0.2em", textAlign: "center" }}>CHARACTER<br/>IMAGE HERE</div>
+                </div>
+              </div>
+            )}
+
+            {/* Bottom gradient */}
+            <div className="absolute inset-x-0 bottom-0 pointer-events-none"
+              style={{ height: "45%", background: "linear-gradient(to top, #050810f0 0%, transparent 100%)" }} />
+
+            {/* Placement banner */}
+            <div className="absolute bottom-0 left-0 p-4 sm:p-8">
+              <div className="text-xs tracking-[0.3em] mb-1" style={{ color }}>{label}</div>
+              <div className="font-bold tracking-widest"
+                style={{
+                  color,
+                  textShadow: `0 0 16px ${color}, 0 0 40px ${color}66`,
+                  fontSize: split ? "clamp(0.9rem, 2vw, 1.5rem)" : "clamp(1.5rem, 5vw, 3.5rem)",
+                  transition: "font-size 0.8s ease",
+                }}>
+                {player.name}
+              </div>
+            </div>
+
+            {/* Divider line between panels in split mode */}
+            {split && splitLeft !== "66.666%" && (
+              <div className="absolute top-0 bottom-0 right-0 pointer-events-none"
+                style={{ width: 2, background: color, boxShadow: `0 0 12px 2px ${color}`, opacity: 0.5 }} />
+            )}
+          </div>
+        );
+      })}
+
+      {/* Header */}
+      <div className="absolute top-0 left-0 right-0 flex flex-col items-center pt-6 pointer-events-none"
+        style={{ zIndex: 20, transition: "opacity 0.8s ease", opacity: stage >= 3 ? 1 : 0 }}>
+        <div className="text-xs tracking-[0.5em] text-[var(--text-dim)] mb-1">TOURNAMENT COMPLETE</div>
+        <div className="text-3xl sm:text-4xl font-bold tracking-widest text-[#f0c000]"
+          style={{ textShadow: "0 0 20px #f0c000, 0 0 60px #f0c00066" }}>
+          RESULTS
+        </div>
+      </div>
+
+      {/* Back button */}
+      <div className="absolute bottom-6 right-6"
+        style={{ zIndex: 20, transition: "opacity 0.8s ease", opacity: stage >= 3 ? 1 : 0 }}>
+        <button onClick={onClose}
+          className="px-6 py-2 text-sm tracking-widest border border-[var(--border)] text-[var(--text-dim)] hover:border-[#39ff14] hover:text-[#39ff14] transition-colors"
+          style={{ background: "#050810cc" }}>
+          ◀ BACK TO BRACKET
+        </button>
+      </div>
+    </div>
+  );
+}

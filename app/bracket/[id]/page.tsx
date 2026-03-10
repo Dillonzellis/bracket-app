@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { isDebugMode } from "@/lib/db";
-import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, swapPlayers, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
+import { BracketState, Match, Game, reportResult, undoResult, countAffectedMatches, findByeSlots, addPlayerToSlot, addPlayerToLosers, resolvePlayer, disqualifyPlayer, getReadyMatches, getStandings, renamePlayerInMatch, movePlayer } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
 import { Suspense } from "react";
 import MatchPanel from "./MatchPanel";
+import ResultsScreen from "./ResultsScreen";
 
 const MATCH_W = 240;
 const MATCH_H = 72;
@@ -86,7 +87,7 @@ function sectionH(rounds: string[][]): number {
 }
 
 function SeedBadge({ seed }: { seed: number }) {
-  return <span className="text-xs text-[var(--text-dim)] ml-1.5 shrink-0">[{seed}]</span>;
+  return <span className="text-xs text-(--text-dim) ml-1.5 shrink-0">[{seed}]</span>;
 }
 
 export default function BracketPage() {
@@ -101,31 +102,44 @@ export default function BracketPage() {
     });
   }, [id, router]);
 
-  useEffect(() => {
-    const matchId = new URLSearchParams(window.location.search).get("matchId");
-    if (matchId) {
-      setActiveMatchId(matchId);
-      router.replace(window.location.pathname);
-    }
-  }, []);
-
   const [zoom, setZoom] = useState(1);
   const [search, setSearch] = useState("");
   const [renamingName, setRenamingName] = useState<string | null>(null);
   const [drawerTab, setDrawerTab] = useState<"queue" | "standings">("queue");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
-  const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
+  const [activeMatchId, setActiveMatchId] = useState<string | null>(
+    () => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("matchId") : null
+  );
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("matchId")) {
+      router.replace(window.location.pathname);
+    }
+  }, [router]);
   const [editMode, setEditMode] = useState(false);
   const [editMatchId, setEditMatchId] = useState<string | null>(null);
   const [moveFrom, setMoveFrom] = useState<{ matchId: string; slot: "p1" | "p2" } | null>(null);
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const autoShownKey = `results-auto-shown-${id}`;
 
   useEffect(() => {
-    if (isDebugMode()) { setIsAdmin(true); return; }
+    if (!record?.state.champion) return;
+    if (localStorage.getItem(autoShownKey)) return;
+    const t = setTimeout(() => {
+      localStorage.setItem(autoShownKey, "1");
+      setShowResults(true);
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [autoShownKey, record?.state.champion?.id]);
+
+  const [isAdmin, setIsAdmin] = useState(() => isDebugMode());
+
+  useEffect(() => {
+    if (isDebugMode()) return;
     createClient().auth.getUser().then(({ data }) => setIsAdmin(!!data.user));
   }, []);
 
@@ -209,7 +223,6 @@ export default function BracketPage() {
   // Each losers column occupies MATCH_W + L_SUB_GAP + MATCH_W wide, then COL_GAP to next column
   const lColW = MATCH_W * 2 + L_SUB_GAP;
   function lColX(ci: number) { return ci * (lColW + COL_GAP); }
-  const numCols = Math.max(wRounds.length, lCols.length);
   // Winners uses colX (MATCH_W + COL_GAP steps), losers uses lColX (lColW + COL_GAP steps)
   // GF goes after the wider of the two
   const wTotalW = wRounds.length > 0 ? colX(wRounds.length - 1) + MATCH_W : 0;
@@ -354,11 +367,15 @@ export default function BracketPage() {
       </div>
 
       {state.champion && (
-        <div className="shrink-0 text-center py-2 border-b border-[var(--border)] bg-[#1a1a0a]">
+        <div className="shrink-0 flex items-center justify-center gap-4 py-2 border-b border-[var(--border)] bg-[#1a1a0a]">
           <span className="text-sm tracking-widest font-bold text-[#f0c000]"
             style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}>
             ★ CHAMPION: {state.champion.name} ★
           </span>
+          <button onClick={() => setShowResults(true)}
+            className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors">
+            🏆 RESULTS
+          </button>
         </div>
       )}
 
@@ -610,6 +627,22 @@ export default function BracketPage() {
               </div>
             </div>
           </div>
+        );
+      })()}
+      {showResults && state.champion && (() => {
+        const s = getStandings(state);
+        const get = (place: string) => s.find(x => x.place === place)?.player;
+        const p1 = get("1st") ?? state.champion;
+        const p2 = get("2nd");
+        const p3 = get("3rd");
+        if (!p2 || !p3) return null;
+        return (
+          <ResultsScreen
+            first={{ name: p1.name }}
+            second={{ name: p2.name }}
+            third={{ name: p3.name }}
+            onClose={() => setShowResults(false)}
+          />
         );
       })()}
     </main>
