@@ -159,7 +159,7 @@ export default function Home() {
             {tournaments.map((t) => (
               <Link
                 key={t.id}
-                href={t.state.champion ? `/bracket/${t.id}?results=1` : `/bracket/${t.id}`}
+                href={t.state.champion ? `/bracket/${t.id}/results?skip=1` : `/bracket/${t.id}`}
                 className="flex items-center gap-2 border border-[var(--border)] px-3 py-2 hover:border-[var(--text)] transition-colors"
               >
                 <div className="flex-1 font-mono text-base text-[var(--text)]">

@@ -4,6 +4,20 @@ import { useEffect, useRef, useState } from "react";
 
 type PodiumPlayer = { name: string; character?: string };
 
+const CHARACTER_MAP: Record<string, string> = {
+  chadmcbrad: "/peach-results.jpg",
+  yoshapod: "/peach-results.jpg",
+  chadmcbradly: "/peach-results.jpg",
+  chaddad: "/peach-results.jpg",
+  burly: "/fox-results.jpg",
+  zell: "/falco-results.jpg",
+};
+
+function getCharacterImage(name: string): string {
+  const normalized = name.replace(/\s*\[DQ\]$/i, "").toLowerCase();
+  return CHARACTER_MAP[normalized] ?? "/defaults-results.png";
+}
+
 type Props = {
   first: PodiumPlayer;
   second: PodiumPlayer;
@@ -13,7 +27,7 @@ type Props = {
 };
 
 // Stage 0=dark, 1=3rd in, 2=2nd in, 3=1st in+confetti, 4=split to thirds
-const STAGE_DELAYS = [900, 1200, 1200, 1800];
+const STAGE_DELAYS = [100, 3200, 2200, 2800];
 
 const CONFETTI_COLORS = ["#f0c000", "#39ff14", "#e8001c", "#c084fc", "#ffffff"];
 
@@ -91,7 +105,7 @@ export default function ResultsScreen({ first, second, third, initialStage, onCl
   const [stage, setStage] = useState(initialStage ?? 0);
 
   useEffect(() => {
-    if (initialStage) return; // skip animation if starting at a specific stage
+    if (initialStage) return;
     let t: ReturnType<typeof setTimeout>;
     const advance = (s: number) => {
       t = setTimeout(() => { setStage(s); if (s < 4) advance(s + 1); }, STAGE_DELAYS[s - 1]);
@@ -102,10 +116,11 @@ export default function ResultsScreen({ first, second, third, initialStage, onCl
 
   useConfetti(canvasRef, stage >= 3);
 
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(max-width: 639px)").matches : false
+  );
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 639px)");
-    setIsMobile(mq.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
@@ -127,9 +142,9 @@ export default function ResultsScreen({ first, second, third, initialStage, onCl
         // Desktop split: 3 equal columns side by side
         const mobileSplitStyle = (() => {
           if (!split || !isMobile) return {};
-          if (key === "first")  return { left: 0, top: 0, width: "100%", bottom: "192px", zIndex: 1 };
-          if (key === "second") return { left: "50%", bottom: 0, top: "auto", width: "50%", height: "192px", zIndex: 2 };
-          if (key === "third")  return { left: 0,     bottom: 0, top: "auto", width: "50%", height: "192px", zIndex: 2 };
+          if (key === "first")  return { left: 0, top: 0, width: "100%", bottom: "260px", zIndex: 1 };
+          if (key === "second") return { left: "50%", bottom: 0, top: "auto", width: "50%", height: "260px", zIndex: 2 };
+          if (key === "third")  return { left: 0,     bottom: 0, top: "auto", width: "50%", height: "260px", zIndex: 2 };
           return {};
         })();
 
@@ -151,29 +166,18 @@ export default function ResultsScreen({ first, second, third, initialStage, onCl
               ...baseStyle,
               ...desktopSplitStyle,
               ...mobileSplitStyle,
+              background: "#050810",
               transition: "transform 0.75s cubic-bezier(0.22,1,0.36,1), left 0.8s cubic-bezier(0.22,1,0.36,1), width 0.8s cubic-bezier(0.22,1,0.36,1), height 0.8s cubic-bezier(0.22,1,0.36,1), bottom 0.8s cubic-bezier(0.22,1,0.36,1)",
               transform: visible ? "translate(0,0)" : enterFrom,
             }}
           >
             {/* Character image / placeholder */}
-            {player.character ? (
-              <img
-                src={`/characters/${player.character}`}
-                alt={player.name}
-                className={`absolute inset-0 w-full h-full object-cover object-top char-float-${i + 1}`}
-                style={{ filter: `brightness(0.85)` }}
-              />
-            ) : (
-              <div className={`absolute inset-0 flex items-center justify-center char-float-${i + 1}`}
-                style={{ background: `linear-gradient(160deg, ${color}18 0%, #050810 100%)`, borderLeft: `2px dashed ${color}44`, borderRight: `2px dashed ${color}44` }}>
-                {!isSmallCard && (
-                  <div className="flex flex-col items-center gap-3" style={{ color, opacity: 0.5 }}>
-                    <div style={{ fontSize: 48 }}>👤</div>
-                    <div style={{ fontSize: 11, letterSpacing: "0.2em", textAlign: "center" }}>CHARACTER<br/>IMAGE HERE</div>
-                  </div>
-                )}
-              </div>
-            )}
+            <img
+              src={getCharacterImage(player.name)}
+              alt={player.name}
+              className={`absolute inset-0 w-full h-full object-contain object-center char-float-${i + 1}`}
+              style={{ filter: `brightness(0.85)` }}
+            />
 
             {/* Bottom gradient */}
             {!isSmallCard && (
@@ -184,12 +188,12 @@ export default function ResultsScreen({ first, second, third, initialStage, onCl
             {/* Placement banner */}
             <div className={`absolute ${isSmallCard ? "inset-0 flex flex-col justify-center px-3" : "bottom-0 left-0 p-4 sm:p-8"}`}
               style={isSmallCard ? { background: `linear-gradient(160deg, ${color}18 0%, #050810ee 100%)`, borderTop: `1px solid ${color}66` } : {}}>
-              <div className="text-xs tracking-[0.3em] mb-0.5" style={{ color }}>{label}</div>
+              <div className="text-xs tracking-[0.3em] mb-0.5" style={{ color, fontSize: split && !isSmallCard ? "clamp(0.75rem, 1.2vw, 1rem)" : undefined }}>{label}</div>
               <div className="font-bold tracking-widest"
                 style={{
                   color,
                   textShadow: `0 0 16px ${color}, 0 0 40px ${color}66`,
-                  fontSize: isSmallCard ? "0.85rem" : split ? "clamp(0.9rem, 2vw, 1.5rem)" : "clamp(1.5rem, 5vw, 3.5rem)",
+                  fontSize: isSmallCard ? "0.85rem" : split ? "clamp(1.5rem, 3.5vw, 3rem)" : "clamp(1.5rem, 5vw, 3.5rem)",
                   transition: "font-size 0.8s ease",
                 }}>
                 {player.name}

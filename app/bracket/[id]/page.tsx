@@ -9,7 +9,6 @@ import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
 import { Suspense } from "react";
 import MatchPanel from "./MatchPanel";
-import ResultsScreen from "./ResultsScreen";
 
 const MATCH_W = 150;
 const MATCH_H = 44;
@@ -109,11 +108,10 @@ export default function BracketPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmUndo, setConfirmUndo] = useState<{ matchId: string; description: string } | null>(null);
   const searchParams = useSearchParams();
-  const showResultsFromHome = useRef(searchParams.get("results") === "1").current;
   const [activeMatchId, setActiveMatchId] = useState<string | null>(searchParams.get("matchId"));
 
   useEffect(() => {
-    if (searchParams.get("matchId") || searchParams.get("results")) {
+    if (searchParams.get("matchId")) {
       router.replace(window.location.pathname);
     }
   }, [router, searchParams]);
@@ -123,8 +121,6 @@ export default function BracketPage() {
   const [lateEntry, setLateEntry] = useState(false);
   const [lateName, setLateName] = useState("");
   const [lateSlot, setLateSlot] = useState("");
-  const [showResults, setShowResults] = useState(showResultsFromHome);
-
   const [isAdmin, setIsAdmin] = useState(() => isDebugMode());
 
   useEffect(() => {
@@ -183,7 +179,7 @@ export default function BracketPage() {
     setLateName(""); setLateSlot(""); setLateEntry(false);
   };
 
-  if (!record) return showResultsFromHome ? <div className="fixed inset-0" style={{ background: "#050810", zIndex: 50 }} /> : null;
+  if (!record) return null;
 
   const state = record.state;
   const gf = state.matches[state.grandFinalsId];
@@ -361,7 +357,7 @@ export default function BracketPage() {
             style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}>
             ★ CHAMPION: {state.champion.name} ★
           </span>
-          <button onClick={() => setShowResults(true)}
+          <button onClick={() => router.push(`/bracket/${id}/results`)}
             className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors">
             🏆 RESULTS
           </button>
@@ -618,23 +614,7 @@ export default function BracketPage() {
           </div>
         );
       })()}
-      {showResults && state.champion && (() => {
-        const s = getStandings(state);
-        const get = (place: string) => s.find(x => x.place === place)?.player;
-        const p1 = get("1st") ?? state.champion;
-        const p2 = get("2nd");
-        const p3 = get("3rd");
-        if (!p2 || !p3) return null;
-        return (
-          <ResultsScreen
-            first={{ name: p1.name }}
-            second={{ name: p2.name }}
-            third={{ name: p3.name }}
-            initialStage={showResultsFromHome ? 4 : undefined}
-            onClose={() => setShowResults(false)}
-          />
-        );
-      })()}
+
     </main>
   );
 }
