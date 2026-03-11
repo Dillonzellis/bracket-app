@@ -342,6 +342,7 @@ function StrikePage() {
         setPhase({ ...phase, bansLeft: newBansLeft, banned: newBanned });
       } else {
         const available = ALL_STAGES.filter(s => !newBanned.includes(s));
+        // loser of the game (not the banner) picks
         setPhase({ type: "cp_pick", winner: phase.loser === 1 ? 2 : 1, available });
       }
     }
@@ -369,7 +370,8 @@ function StrikePage() {
     if (cpBans === 0) {
       setPhase({ type: "cp_pick", winner: loser, available: ALL_STAGES });
     } else {
-      setPhase({ type: "cp_ban", loser, bansLeft: cpBans, banned: [] });
+      // Bo3: winner bans 1, then loser picks
+      setPhase({ type: "cp_ban", loser: winner, bansLeft: cpBans, banned: [] });
     }
   }
 
