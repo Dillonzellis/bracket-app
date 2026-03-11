@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
@@ -24,6 +24,7 @@ export default function Home() {
   const [tournamentName, setTournamentName] = useState("");
   const [defaultFormat, setDefaultFormat] = useState<3 | 5>(3);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   const [user, setUser] = useState<User | null>(null);
   const [debugMode, setDebugModeState] = useState(() => isDebugMode());
   const [loadingTournaments, setLoadingTournaments] = useState(true);
@@ -107,6 +108,15 @@ export default function Home() {
     saveTournament(record).then(() => router.push(`/bracket/${id}`));
   };
 
+  const handleCopy = (t: TournamentRecord) => {
+    const players = t.state.players;
+    setTournamentName(`Copy of ${t.name}`);
+    setNames(players.map(p => p.name));
+    setSeeds(Object.fromEntries(players.map((p, i) => [i, p.seed ?? i + 1])));
+    setDefaultFormat(t.defaultFormat ?? 3);
+    setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  };
+
   const handleDelete = (id: string) => {
     deleteTournament(id).then(() => getTournaments().then(setTournaments));
     setConfirmDelete(null);
@@ -169,12 +179,21 @@ export default function Home() {
                   return <span className="text-xs font-mono shrink-0" style={{ color: cfg.color }}>{cfg.label}</span>;
                 })()}
                 {isAdmin && (
-                <button
-                  onClick={(e) => { e.preventDefault(); setConfirmDelete(t.id); }}
-                  className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1 cursor-pointer"
-                >
-                  ✕
-                </button>
+                  <div className="flex items-center gap-1" onClick={e => e.preventDefault()}>
+                    <button
+                      onClick={() => handleCopy(t)}
+                      className="text-sm text-[var(--text-dim)] hover:text-[#39ff14] transition-colors font-mono px-1 cursor-pointer"
+                      title="Copy to new tournament"
+                    >
+                      ⎘
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(t.id)}
+                      className="text-sm text-[var(--text-dim)] hover:text-[#e8001c] transition-colors font-mono px-1 cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 )}
               </Link>
             ))}
@@ -184,7 +203,7 @@ export default function Home() {
 
       {isAdmin ? <>
       {/* New tournament */}
-      <div className="w-full max-w-md mb-5">
+      <div ref={formRef} className="w-full max-w-md mb-5">
         <div className="text-sm mb-2 text-[var(--text-dim)]">
           &gt; NEW TOURNAMENT
         </div>
@@ -288,14 +307,8 @@ export default function Home() {
         </button>
       </div>
       </> : (
-        <div className="w-full max-w-md flex flex-col items-center gap-4">
+        <div className="w-full max-w-md flex flex-col items-center">
           <img src="/melee-qr-bracket-300px.png" alt="QR Code" className="w-64 h-64 mb-16" />
-          <button
-            onClick={() => router.push("/login")}
-            className="w-full py-3 text-base font-bold tracking-widest font-mono border border-[#39ff14] text-[#39ff14] hover:bg-[#39ff1415] transition-colors"
-          >
-            ▶ LOGIN TO CREATE TOURNAMENT
-          </button>
         </div>
       )}
 

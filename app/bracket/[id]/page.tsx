@@ -11,13 +11,13 @@ import { Suspense } from "react";
 import MatchPanel from "./MatchPanel";
 import ResultsScreen from "./ResultsScreen";
 
-const MATCH_W = 240;
-const MATCH_H = 72;
-const COL_GAP = 72;
-const SECTION_GAP = 96;
-const L_SUB_GAP = 32; // gap between drop and consolidation sub-rounds within a losers column
+const MATCH_W = 150;
+const MATCH_H = 44;
+const COL_GAP = 56;
+const SECTION_GAP = 72;
+const L_SUB_GAP = 24; // gap between drop and consolidation sub-rounds within a losers column
 
-const ROW_H = MATCH_H + 56; // vertical slot height for the densest round
+const ROW_H = MATCH_H + 40; // vertical slot height for the densest round
 
 function colX(ri: number) { return ri * (MATCH_W + COL_GAP); }
 
@@ -320,7 +320,7 @@ export default function BracketPage() {
               className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">−</button>
             <button onClick={() => setZoom(1)}
               className="px-2 h-8 font-mono text-xs text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">{Math.round(zoom * 100)}%</button>
-            <button onClick={() => setZoom(z => Math.min(1, +(z + 0.1).toFixed(2)))}
+            <button onClick={() => setZoom(z => Math.min(2, +(z + 0.1).toFixed(2)))}
               className="w-8 h-8 flex items-center justify-center font-mono text-base text-[var(--text)] border border-[var(--border)] hover:border-[var(--text)] transition-colors">+</button>
           </div>
           <button onClick={() => setDrawerOpen(o => !o)}
@@ -378,12 +378,12 @@ export default function BracketPage() {
       <div className="flex-1 overflow-auto p-4 pt-20">
         <div style={{ width: totalW * zoom, height: (totalH + 36) * zoom }}>
         <div className="relative origin-top-left" style={{ width: totalW, height: totalH + 36, transform: `scale(${zoom})` }}>
-          <div className="absolute text-lg tracking-widest font-bold text-(--text) glow"
-            style={{ top: wOffsetY, left: 0, transform: "translateY(-52px)" }}>▸ WINNERS BRACKET</div>
-          <div className="absolute text-base tracking-widest font-bold text-[#e8001c]"
-            style={{ top: lOffsetY, left: 0, transform: "translateY(-52px)", textShadow: "0 0 8px #e8001c" }}>▸ LOSERS BRACKET</div>
-          <div className="absolute text-base tracking-widest font-bold text-center text-[#f0c000]"
-            style={{ left: gfColX, top: gfY - 24, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>★ GRAND FINALS</div>
+          <div className="absolute text-sm tracking-widest font-bold text-(--text) glow"
+            style={{ top: wOffsetY, left: 0, transform: "translateY(-44px)" }}>▸ WINNERS BRACKET</div>
+          <div className="absolute text-sm tracking-widest font-bold text-[#e8001c]"
+            style={{ top: lOffsetY, left: 0, transform: "translateY(-44px)", textShadow: "0 0 8px #e8001c" }}>▸ LOSERS BRACKET</div>
+          <div className="absolute text-xs tracking-widest font-bold text-center text-[#f0c000]"
+            style={{ left: gfColX, top: gfY - 18, width: MATCH_W, textShadow: "0 0 8px #f0c000" }}>★ GRAND FINALS</div>
 
           <svg className="absolute inset-0 pointer-events-none" width={totalW} height={totalH + 36}>
             {paths.map((p, i) => <path key={i} d={p.d} fill="none" stroke={p.color} strokeWidth={1.5} />)}
@@ -393,8 +393,8 @@ export default function BracketPage() {
             const cx = colX(ri);
             return (
               <div key={`w${ri}`}>
-                <div className="absolute text-base text-center text-(--text-dim)"
-                  style={{ left: cx, top: wOffsetY - 20, width: MATCH_W }}>W-R{ri + 1}</div>
+                <div className="absolute text-xs text-center text-(--text-dim)"
+                  style={{ left: cx, top: wOffsetY - 16, width: MATCH_W }}>W-R{ri + 1}</div>
                 {round.map((id, mi) => (
                   <div key={id} className="absolute" style={{ left: cx, top: wOffsetY + wYTable[ri][mi] }}>
                     <MatchCard match={state.matches[id]} state={state}
@@ -423,8 +423,8 @@ export default function BracketPage() {
                   : `L-R${roundIdx + 1}`;
                 return (
                   <div key={`l${roundIdx}`}>
-                    <div className="absolute text-base text-center text-(--text-dim)"
-                      style={{ left: cx, top: lOffsetY - 20, width: MATCH_W }}>{label}</div>
+                    <div className="absolute text-xs text-center text-(--text-dim)"
+                      style={{ left: cx, top: lOffsetY - 16, width: MATCH_W }}>{label}</div>
                     {round.map((id, mi) => (
                       <div key={id} className="absolute" style={{ left: cx, top: lOffsetY + lYTable[roundIdx][mi] }}>
                         <MatchCard match={state.matches[id]} state={state}
@@ -707,7 +707,7 @@ function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, 
         return (
           <div key={slot}
             className={cn(
-              "w-full flex items-center justify-between px-2 font-mono text-base tracking-wide",
+              "w-full flex items-center justify-between px-1.5 font-mono text-xs tracking-wide",
               isLoser && !editMode && "line-through",
               editMode && "hover:bg-[#f0c00015]",
               isSelected && "bg-[#f0c00030]",
@@ -722,17 +722,17 @@ function MatchCard({ match, state, onOpen, winnerColor, borderColor, highlight, 
               cursor: editMode ? "pointer" : undefined,
             }}
           >
-            <span className="flex items-center overflow-hidden max-w-50">
-              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-xs">
-                {player ? player.name : <span className="text-(--text-dim) italic">-- TBD --</span>}
+            <span className="flex items-center overflow-hidden min-w-0 flex-1">
+              <span className="overflow-hidden text-ellipsis whitespace-nowrap text-xs min-w-0">
+                {player ? player.name : <span className="text-(--text-dim) italic">TBD</span>}
               </span>
               {player?.seed && <SeedBadge seed={player.seed} />}
             </span>
             {editMode
               ? <span className="text-xs shrink-0 text-[#f0c00080]">{isSelected ? "✦ MOVING" : "↕"}</span>
               : gameScore !== null
-                ? <span className="text-sm shrink-0" style={{ color: isWinner ? winnerColor : "var(--text-dim)" }}>{gameScore}</span>
-                : isWinner && <span className="text-sm shrink-0" style={{ color: winnerColor }}>WIN▶</span>
+                ? <span className="text-xs shrink-0" style={{ color: isWinner ? winnerColor : "var(--text-dim)" }}>{gameScore}</span>
+                : isWinner && <span className="text-xs shrink-0" style={{ color: winnerColor }}>WIN▶</span>
             }
           </div>
         );
