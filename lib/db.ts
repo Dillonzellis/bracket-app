@@ -76,3 +76,48 @@ export async function deleteTournament(id: string): Promise<void> {
   const supabase = createClient();
   await supabase.from("tournaments").delete().eq("id", id);
 }
+
+function validateEntrantName(name: string): string | null {
+  if (!name) return "Name cannot be empty.";
+  if (name.length > 50) return "Name must be 50 characters or fewer.";
+  if (!/^[a-zA-Z0-9 _\-'.]+$/.test(name)) return "Name contains invalid characters.";
+  return null;
+}
+
+export async function getEntrants(): Promise<{ id: string; name: string }[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from("entrants").select("id, name").order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+export async function addEntrant(name: string): Promise<{ error?: string; id?: string }> {
+  const trimmed = name.trim();
+  const err = validateEntrantName(trimmed);
+  if (err) return { error: err };
+
+  const supabase = createClient();
+  const { count } = await supabase.from("entrants").select("*", { count: "exact", head: true });
+  if ((count ?? 0) >= 100) return { error: "Entrant limit of 100 reached." };
+
+  const { data, error } = await supabase.from("entrants").insert({ name: trimmed }).select("id").single();
+  if (error) return { error: error.message };
+  return { id: data.id };
+}
+
+export async function updateEntrant(id: string, name: string): Promise<{ error?: string }> {
+  const trimmed = name.trim();
+  const err = validateEntrantName(trimmed);
+  if (err) return { error: err };
+
+  const supabase = createClient();
+  const { error } = await supabase.from("entrants").update({ name: trimmed }).eq("id", id);
+  if (error) return { error: error.message };
+  return {};
+}
+
+export async function deleteEntrant(id: string): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.from("entrants").delete().eq("id", id);
+  if (error) return { error: error.message };
+  return {};
+}
