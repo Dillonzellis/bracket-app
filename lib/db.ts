@@ -38,10 +38,8 @@ function fromRow(row: any): TournamentRecord {
 }
 
 export async function getTournaments(): Promise<TournamentRecord[]> {
-if (isDebugMode()) {
-    const data = Object.values(lsLoad()).sort((a, b) => b.createdAt - a.createdAt);
-    tournamentsCache = { data, expiresAt: Date.now() + TTL_MS };
-    return data;
+  if (isDebugMode()) {
+    return Object.values(lsLoad()).sort((a, b) => b.createdAt - a.createdAt);
   }
   const supabase = createClient();
   const { data } = await supabase.from("tournaments").select().order("created_at", { ascending: false });
