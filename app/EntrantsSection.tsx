@@ -29,7 +29,10 @@ export default function EntrantsSection({
       if (result.error) {
         setError(result.error);
       } else {
-        setEntrants((prev) => [...prev, { id: result.id!, name: input.trim() }]);
+        setEntrants((prev) => [
+          ...prev,
+          { id: result.id!, name: input.trim() },
+        ]);
         setInput("");
       }
     });
@@ -48,7 +51,9 @@ export default function EntrantsSection({
       if (result.error) {
         setError(result.error);
       } else {
-        setEntrants((prev) => prev.map((e) => (e.id === id ? { ...e, name: editValue.trim() } : e)));
+        setEntrants((prev) =>
+          prev.map((e) => (e.id === id ? { ...e, name: editValue.trim() } : e)),
+        );
         setEditingId(null);
       }
     });
@@ -63,7 +68,9 @@ export default function EntrantsSection({
 
   return (
     <>
-      <div className="text-sm mb-2 text-[var(--text-dim)]">&gt; ENTRANTS {isAdmin && `(${entrants.length}/100)`}</div>
+      <div className="text-sm mb-2 text-(--text-dim)">
+        &gt; ENTRANTS {isAdmin && `(${entrants.length}/100)`}
+      </div>
 
       {!atLimit && (
         <div className="flex gap-2 mb-3">
@@ -85,14 +92,25 @@ export default function EntrantsSection({
         </div>
       )}
 
-      {error && <div className="text-xs text-[#e8001c] mb-2 font-mono">{error}</div>}
-      {atLimit && <div className="text-xs text-[#f0c000] mb-2 font-mono">Entrant limit of 100 reached.</div>}
+      {error && (
+        <div className="text-xs text-[#e8001c] mb-2 font-mono">{error}</div>
+      )}
+      {atLimit && (
+        <div className="text-xs text-[#f0c000] mb-2 font-mono">
+          Entrant limit of 100 reached.
+        </div>
+      )}
 
-      {entrants.length > 0 && (
+      {isAdmin && entrants.length > 0 && (
         <ol className="space-y-1">
           {entrants.map((e, i) => (
-            <li key={e.id} className="flex items-center gap-2 font-mono text-sm">
-              <span className="w-5 text-right text-[var(--text-dim)] shrink-0">{i + 1}.</span>
+            <li
+              key={e.id}
+              className="flex items-center gap-2 font-mono text-sm"
+            >
+              <span className="w-5 text-right text-(--text-dim) shrink-0">
+                {i + 1}.
+              </span>
               {editingId === e.id ? (
                 <>
                   <input
@@ -106,16 +124,38 @@ export default function EntrantsSection({
                     maxLength={50}
                     autoFocus
                   />
-                  <button onClick={() => saveEdit(e.id)} disabled={isPending} className="text-xs text-[#39ff14] hover:opacity-70 disabled:opacity-50">✓</button>
-                  <button onClick={() => setEditingId(null)} className="text-xs text-[var(--text-dim)] hover:text-[var(--text)]">✕</button>
+                  <button
+                    onClick={() => saveEdit(e.id)}
+                    disabled={isPending}
+                    className="text-xs text-[#39ff14] hover:opacity-70 disabled:opacity-50"
+                  >
+                    ✓
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="text-xs text-(--text-dim) hover:text-(--text)"
+                  >
+                    ✕
+                  </button>
                 </>
               ) : (
                 <>
-                  <span className="flex-1 text-[var(--text)]">{e.name}</span>
+                  <span className="flex-1 text-(--text)">{e.name}</span>
                   {isAdmin && (
                     <>
-                      <button onClick={() => startEdit(e)} className="text-xs text-[var(--text-dim)] hover:text-[#39ff14] transition-colors">✎</button>
-                      <button onClick={() => remove(e.id)} disabled={isPending} className="text-xs text-[var(--text-dim)] hover:text-[#e8001c] transition-colors disabled:opacity-50">✕</button>
+                      <button
+                        onClick={() => startEdit(e)}
+                        className="text-xs text-(--text-dim) hover:text-[#39ff14] transition-colors"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => remove(e.id)}
+                        disabled={isPending}
+                        className="text-xs text-(--text-dim) hover:text-[#e8001c] transition-colors disabled:opacity-50"
+                      >
+                        ✕
+                      </button>
                     </>
                   )}
                 </>
