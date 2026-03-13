@@ -101,7 +101,7 @@ export default function EntrantsSection({
         </div>
       )}
 
-      {isAdmin && entrants.length > 0 && (
+      {entrants.length > 0 && (
         <ol className="space-y-1">
           {entrants.map((e, i) => (
             <li
