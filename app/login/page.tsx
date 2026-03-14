@@ -9,9 +9,12 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError(null);
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -19,6 +22,7 @@ export default function LoginPage() {
     });
     if (error) {
       setError(error.message);
+      setLoading(false);
       return;
     }
     router.push("/");
@@ -57,14 +61,15 @@ export default function LoginPage() {
         {error && <div className="text-sm text-[#e8001c]">{error}</div>}
         <button
           type="submit"
-          className="w-full py-2 text-sm tracking-widest font-bold"
+          disabled={loading}
+          className="w-full py-2 text-sm tracking-widest font-bold disabled:opacity-60"
           style={{
             border: "1px solid #39ff14",
             color: "#000",
             background: "#39ff14",
           }}
         >
-          LOGIN
+          {loading ? "LOGGING IN… chill dawgie we on free tier" : "LOGIN"}
         </button>
       </form>
     </main>

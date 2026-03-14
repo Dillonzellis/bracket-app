@@ -374,13 +374,16 @@ export default function BracketPage() {
             ◀ MENU
           </button>
           <span
-            className="hidden sm:block text-base tracking-widest glow text-(--text) cursor-pointer hover:opacity-70 transition-opacity truncate flex-1 min-w-0"
-            title="Click to rename"
-            onClick={() => setRenamingName(record.name)}
+            className={cn(
+              "hidden sm:block text-base tracking-widest glow text-(--text) truncate flex-1 min-w-0",
+              isAdmin && "cursor-pointer hover:opacity-70 transition-opacity",
+            )}
+            title={isAdmin ? "Click to rename" : undefined}
+            onClick={isAdmin ? () => setRenamingName(record.name) : undefined}
           >
             {record.name}
           </span>
-          {renamingName !== null && (
+          {isAdmin && renamingName !== null && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -647,6 +650,7 @@ export default function BracketPage() {
                             }
                             editMode={editMode}
                             moveFrom={moveFrom}
+                            isAdmin={isAdmin}
                             onSlotClick={(slot) => {
                               if (!editMode) return;
                               if (!moveFrom) {
@@ -690,6 +694,7 @@ export default function BracketPage() {
                   onOpen={editMode ? setEditMatchId : setActiveMatchId}
                   editMode={editMode}
                   moveFrom={moveFrom}
+                  isAdmin={isAdmin}
                   onSlotClick={(slot) => {
                     if (!editMode) return;
                     if (!moveFrom) {
