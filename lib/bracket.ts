@@ -531,6 +531,34 @@ export function getStandings(state: BracketState): Standing[] {
   return standings;
 }
 
+export function exportTournament(record: { name: string; createdAt: number; state: BracketState }) {
+  const state = record.state;
+  const standings = getStandings(state);
+  const matchResults = Object.values(state.matches)
+    .filter(m => m.winner)
+    .map(m => ({
+      id: m.id,
+      bracket: m.bracket,
+      winner: m.winner!.name,
+      loser: m.loser?.name ?? null,
+      games: m.games ?? null,
+      format: m.format ?? null,
+    }));
+
+  return {
+    meta: {
+      name: record.name,
+      exportedAt: new Date().toISOString(),
+      createdAt: new Date(record.createdAt).toISOString(),
+      playerCount: state.players.length,
+      champion: state.champion?.name ?? null,
+    },
+    standings: standings.map(s => ({ place: s.place, player: s.player.name })),
+    matchResults,
+    raw: record,
+  };
+}
+
 export function getReadyMatches(state: BracketState): Match[] {
   return Object.values(state.matches).filter(m => {
     if (m.winner) return false;

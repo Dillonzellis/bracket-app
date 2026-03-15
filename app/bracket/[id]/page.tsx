@@ -17,6 +17,7 @@ import {
   getStandings,
   renamePlayerInMatch,
   movePlayer,
+  exportTournament,
 } from "@/lib/bracket";
 import { getTournament, saveTournament, TournamentRecord } from "@/lib/db";
 import { cn } from "@/lib/cn";
@@ -440,6 +441,21 @@ export default function BracketPage() {
             </button>
           </div>
           <button
+            onClick={() => {
+              const data = exportTournament(record);
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${record.name.replace(/\s+/g, "_")}_export.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0"
+          >
+            ↓ EXPORT
+          </button>
+          <button
             onClick={() => setDrawerOpen((o) => !o)}
             className="text-xs tracking-widest font-mono text-[var(--text)] transition-colors border border-[var(--border)] px-2 h-8 hover:border-[#39ff14] hover:text-[#39ff14] shrink-0"
           >
@@ -489,6 +505,12 @@ export default function BracketPage() {
             className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
           >
             🏆 RESULTS
+          </button>
+          <button
+            onClick={() => router.push(`/bracket/${id}/standings`)}
+            className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
+          >
+            ★ STANDINGS
           </button>
         </div>
       )}
