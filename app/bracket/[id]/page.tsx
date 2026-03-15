@@ -491,27 +491,27 @@ export default function BracketPage() {
       </div>
 
       {state.champion && (
-        <div className="shrink-0 flex items-center justify-center gap-4 py-2 border-b border-[var(--border)] bg-[#1a1a0a]">
+        <div className="shrink-0 flex flex-col items-center gap-1.5 py-2 px-3 border-b border-[var(--border)] bg-[#1a1a0a]">
           <span
-            className="text-sm tracking-widest font-bold text-[#f0c000]"
-            style={{
-              textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)",
-            }}
+            className="text-sm tracking-widest font-bold text-[#f0c000] text-center"
+            style={{ textShadow: "0 0 10px #f0c000, 0 0 24px rgba(240,192,0,0.4)" }}
           >
             ★ CHAMPION: {state.champion.name} ★
           </span>
-          <button
-            onClick={() => router.push(`/bracket/${id}/results`)}
-            className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
-          >
-            🏆 RESULTS
-          </button>
-          <button
-            onClick={() => router.push(`/bracket/${id}/standings`)}
-            className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
-          >
-            ★ STANDINGS
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => router.push(`/bracket/${id}/results`)}
+              className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
+            >
+              🏆 RESULTS
+            </button>
+            <button
+              onClick={() => router.push(`/bracket/${id}/standings`)}
+              className="text-xs tracking-widest font-mono px-3 py-1 border border-[#f0c000] text-[#f0c000] hover:bg-[#f0c00020] transition-colors"
+            >
+              ★ STANDINGS
+            </button>
+          </div>
         </div>
       )}
 
